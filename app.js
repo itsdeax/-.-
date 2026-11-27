@@ -1,5 +1,6 @@
 (() => {
-  const OUT_ASPECT = 3 / 4;
+  const ASPECTS = { "3:4": 3 / 4, "9:16": 9 / 16, "1:1": 1 };
+  const ASPECT_ORDER = ["3:4", "9:16", "1:1"];
   const PREVIEW_WIDTH = 720;
   const CAPTURE_WIDTH = 1440;
   const SETTINGS_KEY = "thaisuay.settings.v1";
@@ -106,6 +107,7 @@
     intensity: 1,
     timer: 0,
     fill: false,
+    aspect: "3:4",
     flash: false,
     facing: "user",
     face: { slim: 0, jaw: 0, chin: 0, forehead: 0, eyes: 0, nose: 0, mouth: 0 },
@@ -176,6 +178,7 @@
   const timerBtn = $("btn-timer");
   const timerLabel = $("timer-label");
   const flashBtn = $("btn-flash");
+  const aspectBtn = $("btn-aspect");
   const flashScreen = $("flash-screen");
 
   const sliders = {
@@ -859,17 +862,18 @@
 
   function cropGeometry(size) {
     const sa = size.w / size.h;
-    if (sa > OUT_ASPECT) {
-      return { crop: [OUT_ASPECT / sa / zoom, 1 / zoom], regionW: (size.h * OUT_ASPECT) / zoom };
+    const target = outAspect();
+    if (sa > target) {
+      return { crop: [target / sa / zoom, 1 / zoom], regionW: (size.h * target) / zoom };
     }
-    return { crop: [1 / zoom, sa / OUT_ASPECT / zoom], regionW: size.w / zoom };
+    return { crop: [1 / zoom, sa / target / zoom], regionW: size.w / zoom };
   }
 
   function outputDims(targetWidth, size) {
     const { regionW } = cropGeometry(size);
     let w = Math.min(targetWidth, Math.floor(regionW));
     w -= w % 2;
-    const h = Math.round(w / OUT_ASPECT / 2) * 2;
+    const h = Math.round(w / outAspect() / 2) * 2;
     return { w, h };
   }
 
@@ -1054,6 +1058,19 @@
       input.value = String(value);
       out.textContent = String(value);
     });
+  }
+
+  function outAspect() {
+    return ASPECTS[settings.aspect] || ASPECTS["3:4"];
+  }
+
+  function syncAspect() {
+    if (!ASPECTS[settings.aspect]) settings.aspect = "3:4";
+    screenCamera.dataset.aspect = settings.aspect;
+    stage.style.setProperty("--ar", String(outAspect()));
+    aspectBtn.textContent = settings.aspect;
+    syncOverlay();
+    dirty = true;
   }
 
   function flashState() {
@@ -1256,9 +1273,10 @@
   function syncOverlay() {
     const look = activeLook();
     const ctx = overlay.getContext("2d");
-    if (overlay.width !== 720) {
+    const overlayH = Math.round(720 / outAspect());
+    if (overlay.width !== 720 || overlay.height !== overlayH) {
       overlay.width = 720;
-      overlay.height = 960;
+      overlay.height = overlayH;
     }
     drawOverlay(ctx, overlay.width, overlay.height, look);
     overlay.style.visibility = comparing ? "hidden" : "visible";
@@ -1509,6 +1527,14 @@
     settings.timer = TIMER_STEPS[(i + 1) % TIMER_STEPS.length];
     saveSettings();
     syncToolbar();
+  });
+
+  aspectBtn.addEventListener("click", () => {
+    const next = ASPECT_ORDER[(ASPECT_ORDER.indexOf(settings.aspect) + 1) % ASPECT_ORDER.length];
+    settings.aspect = next;
+    saveSettings();
+    syncAspect();
+    toast(`สัดส่วนภาพ ${next}`);
   });
 
   flashBtn.addEventListener("click", () => {
@@ -2322,7 +2348,7 @@
     saveSettings();
   }
   refreshStrip();
-  syncOverlay();
+  syncAspect();
   stripTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       stripKind = tab.dataset.kind;

@@ -1,0 +1,4 @@
+Files in this folder are redistributed unmodified from Google MediaPipe (Apache License 2.0):
+- vision_bundle.js (was vision_bundle.mjs) and wasm/*  from the npm package @mediapipe/tasks-vision@0.10.21
+- face_landmarker.task  from https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
+They run entirely in the browser; camera frames are never uploaded.

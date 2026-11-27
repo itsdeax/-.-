@@ -75,7 +75,27 @@
     timer: 0,
     fill: false,
     facing: "user",
+    face: { slim: 0, jaw: 0, chin: 0, eyes: 0, nose: 0 },
+    makeup: { lip: "", blush: "", shadow: "", amount: 0.7 },
   };
+
+  const FACE_SLIDERS = [
+    { key: "slim", label: "หน้าเรียว", min: 0 },
+    { key: "jaw", label: "กรามเล็ก", min: 0 },
+    { key: "chin", label: "คาง สั้น ↔ ยาว", min: -100 },
+    { key: "eyes", label: "ตาโต", min: 0 },
+    { key: "nose", label: "จมูกเล็ก", min: 0 },
+  ];
+
+  const MAKEUP_ROWS = [
+    {
+      key: "lip",
+      label: "ลิป",
+      colors: ["#d7848a", "#e0567c", "#ee6c5a", "#c8283a", "#9c2f5a", "#a5594e"],
+    },
+    { key: "blush", label: "บลัช", colors: ["#ff9a85", "#ff7fa6", "#e86a86", "#ffa86a"] },
+    { key: "shadow", label: "อายแชโดว์", colors: ["#d9948f", "#8a5a44", "#a77a9c", "#f0a07c"] },
+  ];
 
   const MIN_VISIBLE_INTENSITY = 0.15;
 
@@ -129,6 +149,128 @@
 
   const renderer = createRenderer(canvas);
 
+  /* ---------- face (reshape + makeup) ---------- */
+
+  const FaceKit = window.ThaiSuayFace;
+  const face = {
+    tracker: FaceKit ? FaceKit.createTracker() : null,
+    mask: FaceKit ? FaceKit.createMask() : null,
+    ready: false,
+    loading: false,
+    failed: false,
+    geo: null,
+    hasMask: false,
+    lastDetect: 0,
+    statusText: "",
+    imageToken: 0,
+  };
+
+  const faceFeaturesOn = () =>
+    Boolean(
+      settings.makeup.lip ||
+        settings.makeup.blush ||
+        settings.makeup.shadow ||
+        Object.values(settings.face).some((v) => Math.abs(v) > 0.001)
+    );
+
+  function setFaceStatus(text) {
+    if (text === face.statusText) return;
+    face.statusText = text;
+    const el = document.getElementById("face-status");
+    if (el) el.textContent = text;
+  }
+
+  function currentAspect() {
+    const size = sourceSize();
+    return size.w > 0 && size.h > 0 ? size.w / size.h : 1;
+  }
+
+  function applyFacePoints(pts) {
+    if (!pts) {
+      face.geo = null;
+      face.hasMask = false;
+      setFaceStatus(faceFeaturesOn() ? "ไม่พบใบหน้า" : "");
+      dirty = true;
+      return;
+    }
+    const asp = currentAspect();
+    face.geo = { ...FaceKit.geometry(pts, asp), asp };
+    face.hasMask = FaceKit.drawMakeup(face.mask, pts, asp, settings.makeup);
+    if (face.hasMask && renderer) renderer.uploadMask(face.mask.canvas);
+    setFaceStatus("พบใบหน้า");
+    dirty = true;
+  }
+
+  async function detectImageFace() {
+    if (!face.ready || mode !== "image" || !imageSource) return;
+    const token = ++face.imageToken;
+    try {
+      const raw = await FaceKit.detectImage(imageSource);
+      if (token !== face.imageToken || mode !== "image") return;
+      face.tracker.reset();
+      applyFacePoints(face.tracker.update(raw));
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+
+  async function ensureFace() {
+    if (!FaceKit || face.ready || face.loading || !faceFeaturesOn()) return;
+    face.loading = true;
+    setFaceStatus("กำลังโหลดโมเดลใบหน้า…");
+    try {
+      await FaceKit.load();
+      await FaceKit.setMode(mode === "image" ? "IMAGE" : "VIDEO");
+      face.ready = true;
+      face.failed = false;
+      setFaceStatus("");
+      if (mode === "image") detectImageFace();
+    } catch (err) {
+      console.warn(err);
+      face.failed = true;
+      setFaceStatus("เครื่องนี้ใช้ปรับหน้าไม่ได้");
+      toast("โหลดตัวปรับโครงหน้าไม่สำเร็จ ลองเปิดใหม่อีกครั้ง");
+    } finally {
+      face.loading = false;
+    }
+  }
+
+  function refreshFace() {
+    if (!faceFeaturesOn()) {
+      face.geo = null;
+      face.hasMask = false;
+      setFaceStatus("");
+      dirty = true;
+      return;
+    }
+    ensureFace();
+    if (face.ready && face.tracker.points) applyFacePoints(face.tracker.points);
+    else if (face.ready && mode === "image") detectImageFace();
+    dirty = true;
+  }
+
+  function resetFaceTracking() {
+    face.imageToken += 1;
+    face.tracker?.reset();
+    face.geo = null;
+    face.hasMask = false;
+    if (face.ready && mode === "camera") FaceKit.setMode("VIDEO").catch(() => {});
+  }
+
+  function trackFaceInVideo() {
+    if (!face.ready || mode !== "camera" || !faceFeaturesOn()) return;
+    const now = performance.now();
+    if (now - face.lastDetect < 55) return;
+    face.lastDetect = now;
+    try {
+      const raw = FaceKit.detectVideo(video, now);
+      if (raw === undefined) return;
+      applyFacePoints(face.tracker.update(raw));
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+
   /* ---------- settings ---------- */
 
   function loadSettings() {
@@ -140,10 +282,31 @@
         merged[key] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULT_SETTINGS[key];
       });
       if (merged.intensity < MIN_VISIBLE_INTENSITY) merged.intensity = DEFAULT_SETTINGS.intensity;
+      merged.face = sanitizeFace(merged.face);
+      merged.makeup = sanitizeMakeup(merged.makeup);
       return merged;
     } catch {
-      return { ...DEFAULT_SETTINGS };
+      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null) };
     }
+  }
+
+  function sanitizeFace(f) {
+    const out = {};
+    FACE_SLIDERS.forEach(({ key, min }) => {
+      const v = Number(f?.[key]);
+      out[key] = Number.isFinite(v) ? clamp(v, min / 100, 1) : 0;
+    });
+    return out;
+  }
+
+  function sanitizeMakeup(m) {
+    const out = { amount: 0.7 };
+    const amount = Number(m?.amount);
+    if (Number.isFinite(amount)) out.amount = clamp(amount, 0.1, 1);
+    MAKEUP_ROWS.forEach(({ key, colors }) => {
+      out[key] = colors.includes(m?.[key]) ? m[key] : "";
+    });
+    return out;
   }
 
   function saveSettings() {
@@ -195,6 +358,17 @@
       uniform float u_grain;
       uniform float u_mono;
       uniform float u_seed;
+      uniform vec4 u_face;
+      uniform vec2 u_fc;
+      uniform vec2 u_fax;
+      uniform vec4 u_fy;
+      uniform vec3 u_eyeA;
+      uniform vec3 u_eyeB;
+      uniform vec4 u_nose;
+      uniform vec4 u_rs;
+      uniform float u_eyes;
+      uniform sampler2D u_mask;
+      uniform float u_maskOn;
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -226,9 +400,51 @@
         return sum / wsum;
       }
 
+      vec2 magnify(vec2 l, vec3 e) {
+        vec2 d = l - e.xy;
+        float len = length(d);
+        if (len < e.z) {
+          float k = 1.0 - len / e.z;
+          l = e.xy + d * (1.0 - u_eyes * 0.4 * k * k);
+        }
+        return l;
+      }
+
+      vec2 reshape(vec2 uv) {
+        if (u_face.x < 0.5) return uv;
+        vec2 asp = vec2(u_face.y, 1.0);
+        vec2 ay = vec2(-u_fax.y, u_fax.x);
+        vec2 p = (uv - u_fc) * asp;
+        vec2 l = vec2(dot(p, u_fax), dot(p, ay)) / u_face.z;
+
+        float t = (u_fy.x - l.y) / max(u_fy.x - u_fy.y, 0.2);
+        float ax = abs(l.x);
+        float side = smoothstep(0.1, 0.5, ax) * (1.0 - smoothstep(0.5, 1.0, ax));
+        float wSlim = smoothstep(0.0, 0.35, t) * (1.0 - smoothstep(0.8, 1.05, t));
+        float wJaw = smoothstep(0.45, 0.85, t) * (1.0 - smoothstep(0.95, 1.12, t));
+        l.x += l.x * side * (u_rs.x * 0.2 * wSlim + u_rs.y * 0.22 * wJaw);
+
+        vec2 dc = l - vec2(u_fy.z, u_fy.y);
+        l.y += u_rs.z * 0.16 * exp(-dot(dc, dc) / 0.157);
+
+        vec2 dn = l - u_nose.xy;
+        float wn = (1.0 - smoothstep(0.0, 1.0, abs(dn.x) / (u_nose.z * 2.0)))
+                 * (1.0 - smoothstep(0.0, 1.0, abs(dn.y) / u_nose.w));
+        l.x += dn.x * u_rs.w * 0.3 * wn;
+
+        if (u_eyes > 0.001) {
+          l = magnify(l, u_eyeA);
+          l = magnify(l, u_eyeB);
+        }
+
+        vec2 p2 = (u_fax * l.x + ay * l.y) * u_face.z;
+        return u_fc + p2 / asp;
+      }
+
       void main() {
         vec2 uv = (v_uv - 0.5) * u_crop + 0.5;
         if (u_mirror > 0.5) uv.x = 1.0 - uv.x;
+        uv = reshape(uv);
 
         vec3 orig = texture2D(u_tex, uv).rgb;
         vec3 c = orig;
@@ -239,6 +455,15 @@
           c = mix(orig, sm, clamp(mask * u_smooth * 1.4, 0.0, 1.0));
         }
         c += mask * u_glow * 0.1 * (1.0 - c);
+
+        if (u_maskOn > 0.5) {
+          vec4 m = texture2D(u_mask, uv);
+          if (m.a > 0.003) {
+            vec3 col = m.rgb / m.a;
+            vec3 target = col * clamp(luma(c) * 1.25 + 0.2, 0.0, 1.15);
+            c = mix(c, target, m.a);
+          }
+        }
 
         vec3 g = c * exp2(u_exposure);
         g.r += u_temp * 0.08;
@@ -307,10 +532,23 @@
       "u_tex", "u_texel", "u_crop", "u_mirror", "u_radius", "u_smooth", "u_glow",
       "u_intensity", "u_exposure", "u_contrast", "u_sat", "u_temp", "u_tint",
       "u_fade", "u_vig", "u_grain", "u_mono", "u_seed",
+      "u_face", "u_fc", "u_fax", "u_fy", "u_eyeA", "u_eyeB", "u_nose", "u_rs", "u_eyes",
+      "u_mask", "u_maskOn",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
     gl.uniform1i(uniforms.u_tex, 0);
+
+    const maskTexture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, maskTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(uniforms.u_mask, 1);
 
     return {
       info() {
@@ -323,6 +561,14 @@
           target.height = h;
         }
         gl.viewport(0, 0, w, h);
+      },
+      uploadMask(source) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, maskTexture);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.activeTexture(gl.TEXTURE0);
       },
       upload(source) {
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -346,6 +592,19 @@
         gl.uniform1f(uniforms.u_grain, p.f.grain);
         gl.uniform1f(uniforms.u_mono, p.f.mono);
         gl.uniform1f(uniforms.u_seed, p.seed);
+        const fc = p.face;
+        gl.uniform4f(uniforms.u_face, fc ? 1 : 0, fc ? fc.asp : 1, fc ? fc.width : 1, 0);
+        gl.uniform1f(uniforms.u_maskOn, p.maskOn ? 1 : 0);
+        if (fc) {
+          gl.uniform2f(uniforms.u_fc, fc.center[0], fc.center[1]);
+          gl.uniform2f(uniforms.u_fax, fc.axis[0], fc.axis[1]);
+          gl.uniform4f(uniforms.u_fy, fc.eyeY, fc.chin[1], fc.chin[0], 0);
+          gl.uniform3f(uniforms.u_eyeA, fc.eyeL[0], fc.eyeL[1], fc.eyeL[2]);
+          gl.uniform3f(uniforms.u_eyeB, fc.eyeR[0], fc.eyeR[1], fc.eyeR[2]);
+          gl.uniform4f(uniforms.u_nose, fc.nose[0], fc.nose[1], fc.nose[2], fc.nose[3]);
+          gl.uniform4f(uniforms.u_rs, p.reshape.slim, p.reshape.jaw, p.reshape.chin, p.reshape.nose);
+          gl.uniform1f(uniforms.u_eyes, p.reshape.eyes);
+        }
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       },
     };
@@ -397,6 +656,9 @@
       glow: original ? 0 : settings.glow,
       intensity: original ? 0 : settings.intensity,
       f: currentFilter(),
+      face: !original && face.geo && faceFeaturesOn() ? face.geo : null,
+      maskOn: !original && face.hasMask && Boolean(face.geo),
+      reshape: settings.face,
       seed: (performance.now() % 1000) / 1000,
     };
   }
@@ -420,6 +682,7 @@
       const dims = outputDims(PREVIEW_WIDTH, size);
       renderer.setSize(dims.w, dims.h);
       renderer.upload(isVideo ? video : imageSource);
+      if (isVideo) trackFaceInVideo();
       renderer.draw(drawParams(size, comparing));
       framesDrawn += 1;
       lastRenderError = "";
@@ -543,6 +806,7 @@
     const token = cameraToken;
     mode = "camera";
     imageSource = null;
+    resetFaceTracking();
     exitEditBtn.hidden = true;
     shutterBtn.disabled = true;
     syncToolbar();
@@ -742,6 +1006,11 @@
     stopCamera();
     mode = "image";
     dirty = true;
+    face.tracker?.reset();
+    face.imageToken += 1;
+    face.geo = null;
+    face.hasMask = false;
+    refreshFace();
     shutterBtn.disabled = false;
     exitEditBtn.hidden = false;
     setHint("");
@@ -772,11 +1041,7 @@
     syncToolbar();
   });
 
-  tuneBtn.addEventListener("click", () => {
-    const open = !tunePanel.classList.contains("is-open");
-    tunePanel.classList.toggle("is-open", open);
-    tuneBtn.setAttribute("aria-expanded", String(open));
-  });
+  tuneBtn.addEventListener("click", () => setPanelOpen("tune"));
 
   Object.entries(sliders).forEach(([key, { input, out }]) => {
     input.addEventListener("input", () => {
@@ -795,6 +1060,143 @@
     syncSliders();
     dirty = true;
   });
+
+  /* ---------- face panel ---------- */
+
+  const facePanel = $("face-panel");
+  const faceBtn = $("btn-face");
+  const controlsEl = document.querySelector(".controls");
+  const faceSliderEls = {};
+  const makeupButtons = [];
+
+  function setPanelOpen(which) {
+    const tuneOpen = which === "tune" && !tunePanel.classList.contains("is-open");
+    const faceOpen = which === "face" && !facePanel.classList.contains("is-open");
+    tunePanel.classList.toggle("is-open", tuneOpen);
+    tuneBtn.setAttribute("aria-expanded", String(tuneOpen));
+    facePanel.classList.toggle("is-open", faceOpen);
+    faceBtn.setAttribute("aria-expanded", String(faceOpen));
+    controlsEl.classList.toggle("face-open", faceOpen);
+    if (faceOpen) {
+      FaceKit?.load().catch(() => {});
+      refreshFace();
+    }
+  }
+
+  function buildFacePanel() {
+    const shape = $("face-shape");
+    FACE_SLIDERS.forEach(({ key, label, min }) => {
+      const wrap = document.createElement("label");
+      wrap.className = "slider";
+      const head = document.createElement("span");
+      head.className = "slider-head";
+      head.append(label + " ");
+      const out = document.createElement("output");
+      head.appendChild(out);
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(min);
+      input.max = "100";
+      input.addEventListener("input", () => {
+        settings.face[key] = Number(input.value) / 100;
+        out.textContent = input.value;
+        refreshFace();
+      });
+      input.addEventListener("change", saveSettings);
+      wrap.append(head, input);
+      shape.appendChild(wrap);
+      faceSliderEls[key] = { input, out };
+    });
+
+    const body = $("face-makeup");
+    MAKEUP_ROWS.forEach(({ key, label, colors }) => {
+      const row = document.createElement("div");
+      row.className = "makeup-row";
+      const name = document.createElement("span");
+      name.textContent = label;
+      const swatches = document.createElement("div");
+      swatches.className = "makeup-swatches";
+      ["", ...colors].forEach((hex) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "makeup-swatch" + (hex ? "" : " is-none");
+        btn.dataset.row = key;
+        btn.dataset.color = hex;
+        btn.setAttribute("aria-label", hex ? `${label} ${hex}` : `ไม่ใส่${label}`);
+        if (hex) btn.style.background = hex;
+        else btn.textContent = "ไม่";
+        btn.addEventListener("click", () => {
+          settings.makeup[key] = hex;
+          saveSettings();
+          syncFacePanel();
+          refreshFace();
+        });
+        swatches.appendChild(btn);
+        makeupButtons.push(btn);
+      });
+      row.append(name, swatches);
+      body.appendChild(row);
+    });
+
+    const amount = document.createElement("label");
+    amount.className = "slider";
+    const head = document.createElement("span");
+    head.className = "slider-head";
+    head.append("ความเข้มเมคอัพ ");
+    const out = document.createElement("output");
+    head.appendChild(out);
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "10";
+    input.max = "100";
+    input.addEventListener("input", () => {
+      settings.makeup.amount = Number(input.value) / 100;
+      out.textContent = input.value;
+      refreshFace();
+    });
+    input.addEventListener("change", saveSettings);
+    amount.append(head, input);
+    body.appendChild(amount);
+    faceSliderEls.amount = { input, out };
+
+    document.querySelectorAll(".face-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".face-tab").forEach((t) => {
+          const on = t === tab;
+          t.classList.toggle("is-on", on);
+          t.setAttribute("aria-selected", String(on));
+        });
+        shape.hidden = tab.dataset.tab !== "shape";
+        body.hidden = tab.dataset.tab !== "makeup";
+      });
+    });
+
+    $("btn-face-reset").addEventListener("click", () => {
+      settings.face = sanitizeFace(null);
+      settings.makeup = sanitizeMakeup(null);
+      saveSettings();
+      syncFacePanel();
+      refreshFace();
+    });
+  }
+
+  function syncFacePanel() {
+    FACE_SLIDERS.forEach(({ key }) => {
+      const v = Math.round(settings.face[key] * 100);
+      faceSliderEls[key].input.value = String(v);
+      faceSliderEls[key].out.textContent = String(v);
+    });
+    const a = Math.round(settings.makeup.amount * 100);
+    faceSliderEls.amount.input.value = String(a);
+    faceSliderEls.amount.out.textContent = String(a);
+    makeupButtons.forEach((btn) => {
+      btn.setAttribute("aria-pressed", String(settings.makeup[btn.dataset.row] === btn.dataset.color));
+    });
+  }
+
+  buildFacePanel();
+  syncFacePanel();
+  faceBtn.addEventListener("click", () => setPanelOpen("face"));
 
   $("btn-import").addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", onImport);
@@ -902,6 +1304,9 @@
   function openLab() {
     tunePanel.classList.remove("is-open");
     tuneBtn.setAttribute("aria-expanded", "false");
+    facePanel.classList.remove("is-open");
+    faceBtn.setAttribute("aria-expanded", "false");
+    controlsEl.classList.remove("face-open");
     lab.open = true;
     labEls.panel.hidden = false;
     loadLab(settings.filter);

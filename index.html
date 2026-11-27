@@ -66,6 +66,7 @@
             <video id="source-video" class="offscreen" autoplay playsinline muted></video>
             <p class="stage-hint" id="stage-hint">กำลังเปิดกล้อง…</p>
             <p class="stage-badge" id="compare-badge" hidden>ภาพต้นฉบับ</p>
+            <p class="stage-debug" id="stage-debug" hidden></p>
             <button type="button" class="stage-pill" id="btn-exit-edit" hidden>กลับไปกล้อง</button>
             <div class="countdown" id="countdown" hidden aria-live="assertive"></div>
             <div class="shutter-flash" id="shutter-flash" aria-hidden="true"></div>
@@ -139,6 +140,7 @@
           <div class="lab-sliders" id="lab-sliders"></div>
           <div class="lab-actions">
             <button type="button" class="lab-btn lab-btn-primary" id="btn-lab-save">บันทึกในเครื่อง</button>
+            <button type="button" class="lab-btn" id="btn-lab-link">คัดลอกลิงก์ (ส่งไปมือถือ)</button>
             <button type="button" class="lab-btn" id="btn-lab-copy">คัดลอกโค้ด</button>
             <button type="button" class="lab-btn lab-btn-danger" id="btn-lab-delete" hidden>ลบ</button>
           </div>

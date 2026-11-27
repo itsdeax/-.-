@@ -22,6 +22,17 @@
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+  const HSL_BANDS = [
+    { name: "แดง", color: "#ff4d4d", center: 0, sigma: 0.05 },
+    { name: "ส้ม", color: "#ff9a3c", center: 0.083, sigma: 0.045 },
+    { name: "เหลือง", color: "#ffe14d", center: 0.167, sigma: 0.05 },
+    { name: "เขียว", color: "#4fd16a", center: 0.333, sigma: 0.08 },
+    { name: "ฟ้าเขียว", color: "#3fd6d6", center: 0.5, sigma: 0.08 },
+    { name: "น้ำเงิน", color: "#4d7dff", center: 0.667, sigma: 0.07 },
+    { name: "ม่วง", color: "#a56bff", center: 0.75, sigma: 0.06 },
+    { name: "ชมพู", color: "#ff5fc0", center: 0.889, sigma: 0.07 },
+  ];
+
   function normalizeParams(p) {
     const out = {};
     PARAMS.forEach(({ key, min, max, def }) => {
@@ -100,6 +111,7 @@
     face: { slim: 0, jaw: 0, chin: 0, forehead: 0, eyes: 0, nose: 0, mouth: 0 },
     makeup: { lip: "", blush: "", shadow: "", amount: 0.55 },
     skin: { teeth: 0, dark: 0, highlight: 0, contour: 0 },
+    hsl: [],
   };
 
   const FACE_SLIDERS = [
@@ -153,6 +165,8 @@
   const shutterBtn = $("btn-shutter");
   const tunePanel = $("tune-panel");
   const tuneBtn = $("btn-tune");
+  const hslPanel = $("hsl-panel");
+  const hslBtn = $("btn-hsl");
   const filterStrip = $("filter-strip");
   const fileInput = $("file-input");
   const resultImg = $("result-img");
@@ -339,11 +353,24 @@
       merged.face = sanitizeFace(merged.face);
       merged.makeup = sanitizeMakeup(merged.makeup);
       merged.skin = sanitizeSkin(merged.skin);
+      merged.hsl = sanitizeHsl(merged.hsl);
       return merged;
     } catch {
-      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null), skin: sanitizeSkin(null) };
+      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null), skin: sanitizeSkin(null), hsl: sanitizeHsl(null) };
     }
   }
+
+
+  function sanitizeHsl(list) {
+    return HSL_BANDS.map((_, i) =>
+      [0, 1, 2].map((k) => {
+        const v = Number(list?.[i]?.[k]);
+        return Number.isFinite(v) ? Math.round(clamp(v, -1, 1) * 100) / 100 : 0;
+      })
+    );
+  }
+
+  const hslActive = () => settings.hsl.some((band) => band.some((v) => Math.abs(v) > 0.001));
 
   function sanitizeFace(f) {
     const out = {};
@@ -442,6 +469,43 @@
       uniform vec4 u_port;
       uniform vec3 u_shT;
       uniform vec3 u_hiT;
+      uniform float u_hslOn;
+      uniform vec3 u_hsl[8];
+      uniform float u_hc[8];
+      uniform float u_hsg[8];
+
+      vec3 rgb2hsv(vec3 c) {
+        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+        float d = q.x - min(q.w, q.y);
+        float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+      }
+
+      vec3 hsv2rgb(vec3 c) {
+        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+      }
+
+      vec3 hslMix(vec3 c) {
+        vec3 hsv = rgb2hsv(c);
+        float live = smoothstep(0.05, 0.22, hsv.y) * smoothstep(0.04, 0.16, hsv.z);
+        vec3 acc = vec3(0.0);
+        for (int i = 0; i < 8; i++) {
+          float d = abs(hsv.x - u_hc[i]);
+          d = min(d, 1.0 - d);
+          float w = exp(-(d * d) / (u_hsg[i] * u_hsg[i]));
+          acc += w * u_hsl[i];
+        }
+        acc = clamp(acc, -1.0, 1.0) * live;
+        hsv.x = fract(hsv.x + acc.x * 0.08 + 1.0);
+        hsv.y = clamp(hsv.y * (1.0 + acc.y), 0.0, 1.0);
+        vec3 o = hsv2rgb(hsv);
+        o = acc.z > 0.0 ? mix(o, vec3(1.0), acc.z * 0.4) : o * (1.0 + acc.z * 0.5);
+        return o;
+      }
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -613,6 +677,7 @@
         g += n * u_grain;
 
         c = mix(c, g, u_intensity);
+        if (u_hslOn > 0.5) c = hslMix(c);
 
         if (u_look.x > 0.001) {
           vec3 hi = vec3(0.0);
@@ -679,7 +744,7 @@
       "u_intensity", "u_exposure", "u_contrast", "u_sat", "u_temp", "u_tint",
       "u_fade", "u_vig", "u_grain", "u_mono", "u_seed",
       "u_face", "u_fc", "u_fax", "u_fy", "u_eyeA", "u_eyeB", "u_nose", "u_rs", "u_eyes",
-      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look", "u_port", "u_shT", "u_hiT",
+      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look", "u_port", "u_shT", "u_hiT", "u_hslOn", "u_hsl", "u_hc", "u_hsg",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
@@ -758,6 +823,10 @@
         gl.uniform1f(uniforms.u_maskOn, p.maskOn ? 1 : 0);
         gl.uniform1f(uniforms.u_fxOn, p.fxOn ? 1 : 0);
         gl.uniform3f(uniforms.u_look, p.look.bloom, p.look.leak, p.look.aber);
+        gl.uniform1f(uniforms.u_hslOn, p.hslOn ? 1 : 0);
+        gl.uniform3fv(uniforms.u_hsl, p.hsl);
+        gl.uniform1fv(uniforms.u_hc, HSL_CENTERS);
+        gl.uniform1fv(uniforms.u_hsg, HSL_SIGMAS);
         gl.uniform3fv(uniforms.u_shT, p.split.sh);
         gl.uniform3fv(uniforms.u_hiT, p.split.hi);
         gl.uniform4f(uniforms.u_port, p.port.glow, p.port.warm, p.port.mute, p.port.cool);
@@ -830,11 +899,16 @@
       fxOn: !original && face.hasFx && Boolean(face.geo),
       reshape: settings.face,
       look: original || lab.open ? { bloom: 0, leak: 0, aber: 0 } : findFilter(settings.filter).fx,
+      hslOn: !original && !lab.open && hslActive(),
+      hsl: new Float32Array(settings.hsl.flat()),
       split: original || lab.open ? { sh: [0, 0, 0], hi: [0, 0, 0] } : findFilter(settings.filter).split,
       port: original || lab.open ? { glow: 0, warm: 0, mute: 0, cool: 0 } : findFilter(settings.filter).port,
       seed: (performance.now() % 1000) / 1000,
     };
   }
+
+  const HSL_CENTERS = new Float32Array(HSL_BANDS.map((b) => b.center));
+  const HSL_SIGMAS = new Float32Array(HSL_BANDS.map((b) => b.sigma));
 
   function boostForFlash(p) {
     return { ...p, exposure: p.exposure + 0.18, contrast: p.contrast * 1.08 };
@@ -1453,6 +1527,7 @@
   });
 
   tuneBtn.addEventListener("click", () => setPanelOpen("tune"));
+  hslBtn.addEventListener("click", () => setPanelOpen("hsl"));
 
   Object.entries(sliders).forEach(([key, { input, out }]) => {
     input.addEventListener("input", () => {
@@ -1483,12 +1558,15 @@
   function setPanelOpen(which) {
     const tuneOpen = which === "tune" && !tunePanel.classList.contains("is-open");
     const faceOpen = which === "face" && !facePanel.classList.contains("is-open");
+    const hslOpen = which === "hsl" && !hslPanel.classList.contains("is-open");
+    hslPanel.classList.toggle("is-open", hslOpen);
+    hslBtn.setAttribute("aria-expanded", String(hslOpen));
     tunePanel.classList.toggle("is-open", tuneOpen);
     tuneBtn.setAttribute("aria-expanded", String(tuneOpen));
     facePanel.classList.toggle("is-open", faceOpen);
     faceBtn.setAttribute("aria-expanded", String(faceOpen));
     controlsEl.classList.toggle("face-open", faceOpen);
-    screenCamera.classList.toggle("panel-open", tuneOpen || faceOpen);
+    screenCamera.classList.toggle("panel-open", tuneOpen || faceOpen || hslOpen);
     if (faceOpen) {
       syncFacePanel();
       FaceKit?.load().catch(() => {});
@@ -1605,6 +1683,82 @@
     input.addEventListener("change", saveSettings);
     wrap.append(head, input);
     return { wrap, input, out };
+  }
+
+  const hslUi = { band: 0, dots: [], sliders: [] };
+
+  function syncHslPanel() {
+    hslUi.dots.forEach((dot, i) => {
+      dot.setAttribute("aria-pressed", String(i === hslUi.band));
+      dot.classList.toggle("is-edited", settings.hsl[i].some((v) => Math.abs(v) > 0.001));
+    });
+    hslUi.sliders.forEach(({ input, out }, k) => {
+      const v = Math.round(settings.hsl[hslUi.band][k] * 100);
+      input.value = String(v);
+      out.textContent = v > 0 ? `+${v}` : String(v);
+    });
+    $("hsl-name").textContent = HSL_BANDS[hslUi.band].name;
+  }
+
+  function buildHslPanel() {
+    const dots = $("hsl-dots");
+    HSL_BANDS.forEach((band, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "hsl-dot";
+      btn.style.setProperty("--dot", band.color);
+      btn.setAttribute("aria-label", band.name);
+      btn.addEventListener("click", () => {
+        hslUi.band = i;
+        syncHslPanel();
+      });
+      dots.appendChild(btn);
+      hslUi.dots.push(btn);
+    });
+
+    const box = $("hsl-sliders");
+    ["โทนสี", "ความอิ่ม", "ความสว่าง"].forEach((label, k) => {
+      const wrap = document.createElement("label");
+      wrap.className = "slider hsl-slider";
+      const head = document.createElement("span");
+      head.className = "slider-head";
+      head.append(label + " ");
+      const out = document.createElement("output");
+      head.appendChild(out);
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = "-100";
+      input.max = "100";
+      input.step = "1";
+      input.value = "0";
+      input.addEventListener("input", () => {
+        const v = Number(input.value) / 100;
+        settings.hsl[hslUi.band][k] = v;
+        out.textContent = input.value > 0 ? `+${input.value}` : input.value;
+        hslUi.dots[hslUi.band].classList.toggle(
+          "is-edited",
+          settings.hsl[hslUi.band].some((x) => Math.abs(x) > 0.001)
+        );
+        dirty = true;
+      });
+      input.addEventListener("change", saveSettings);
+      input.addEventListener("dblclick", () => {
+        input.value = "0";
+        input.dispatchEvent(new Event("input"));
+        saveSettings();
+      });
+      wrap.append(head, input);
+      box.appendChild(wrap);
+      hslUi.sliders.push({ input, out });
+    });
+
+    $("btn-hsl-reset").addEventListener("click", () => {
+      settings.hsl = sanitizeHsl(null);
+      saveSettings();
+      syncHslPanel();
+      dirty = true;
+    });
+    syncHslPanel();
   }
 
   function buildFacePanel() {
@@ -1727,6 +1881,7 @@
   }
 
   buildFacePanel();
+  buildHslPanel();
   syncFacePanel();
   faceBtn.addEventListener("click", () => setPanelOpen("face"));
 
@@ -1881,6 +2036,8 @@
   }
 
   function openLab() {
+    hslPanel.classList.remove("is-open");
+    hslBtn.setAttribute("aria-expanded", "false");
     tunePanel.classList.remove("is-open");
     tuneBtn.setAttribute("aria-expanded", "false");
     facePanel.classList.remove("is-open");

@@ -4,74 +4,68 @@
   const CAPTURE_WIDTH = 1440;
   const SETTINGS_KEY = "thaisuay.settings.v1";
 
-  const FILTER_DEFAULTS = {
-    exposure: 0,
-    contrast: 1,
-    sat: 1,
-    temp: 0,
-    tint: 0,
-    fade: 0,
-    vig: 0,
-    grain: 0,
-    mono: 0,
-  };
-
-  const FILTERS = [
-    {
-      id: "natural",
-      name: "ธรรมชาติ",
-      chip: "linear-gradient(135deg,#f3e3d6,#d9b9a4)",
-      p: {},
-    },
-    {
-      id: "cream",
-      name: "ครีมนุ่ม",
-      chip: "linear-gradient(135deg,#fff1dc,#f0cfae)",
-      p: { exposure: 0.14, contrast: 0.92, sat: 0.9, temp: 0.25, tint: 0.08, fade: 0.06 },
-    },
-    {
-      id: "peach",
-      name: "พีช",
-      chip: "linear-gradient(135deg,#ffd9c2,#ff9d8a)",
-      p: { exposure: 0.1, contrast: 0.96, sat: 1.06, temp: 0.35, tint: 0.28, fade: 0.05, vig: 0.15 },
-    },
-    {
-      id: "rose",
-      name: "โรส",
-      chip: "linear-gradient(135deg,#ffd0dc,#e8688c)",
-      p: { exposure: 0.08, contrast: 1.0, sat: 1.12, temp: 0.08, tint: 0.5, fade: 0.04 },
-    },
-    {
-      id: "clear",
-      name: "ใสปิ๊ง",
-      chip: "linear-gradient(135deg,#e3f3ff,#9ed0f5)",
-      p: { exposure: 0.22, contrast: 1.05, sat: 1.16, temp: -0.15 },
-    },
-    {
-      id: "film",
-      name: "ฟิล์ม",
-      chip: "linear-gradient(135deg,#c9b79a,#6f5a46)",
-      p: { contrast: 1.12, sat: 0.84, temp: 0.2, tint: -0.1, fade: 0.1, vig: 0.38, grain: 0.06 },
-    },
-    {
-      id: "golden",
-      name: "โกลเด้น",
-      chip: "linear-gradient(135deg,#ffe29a,#f0a43c)",
-      p: { exposure: 0.1, contrast: 1.05, sat: 1.12, temp: 0.65, tint: 0.1, fade: 0.03, vig: 0.25 },
-    },
-    {
-      id: "cool",
-      name: "ฟ้าเย็น",
-      chip: "linear-gradient(135deg,#cfe3ff,#6c8fd1)",
-      p: { exposure: 0.05, contrast: 1.06, sat: 0.95, temp: -0.55, tint: -0.1, fade: 0.04 },
-    },
-    {
-      id: "mono",
-      name: "ขาวดำ",
-      chip: "linear-gradient(135deg,#e8e8e8,#3a3a3a)",
-      p: { contrast: 1.2, mono: 1, fade: 0.04, vig: 0.3, grain: 0.05 },
-    },
+  const PARAMS = [
+    { key: "exposure", label: "แสง", min: -1, max: 1, step: 0.01, def: 0 },
+    { key: "contrast", label: "คอนทราสต์", min: 0.6, max: 1.6, step: 0.01, def: 1 },
+    { key: "sat", label: "ความอิ่มสี", min: 0, max: 2, step: 0.01, def: 1 },
+    { key: "temp", label: "อุ่น / เย็น", min: -1, max: 1, step: 0.01, def: 0 },
+    { key: "tint", label: "ชมพู / เขียว", min: -1, max: 1, step: 0.01, def: 0 },
+    { key: "fade", label: "ฟาง (ดำจาง)", min: 0, max: 0.3, step: 0.005, def: 0 },
+    { key: "vig", label: "ขอบมืด", min: 0, max: 1, step: 0.01, def: 0 },
+    { key: "grain", label: "เกรน", min: 0, max: 0.2, step: 0.005, def: 0 },
+    { key: "mono", label: "ขาวดำ", min: 0, max: 1, step: 0.01, def: 0 },
   ];
+
+  const CUSTOM_KEY = "thaisuay.customFilters.v1";
+  const DEV_MODE = new URLSearchParams(location.search).has("dev");
+  const HEX = /^#[0-9a-f]{6}$/i;
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  function normalizeParams(p) {
+    const out = {};
+    PARAMS.forEach(({ key, min, max, def }) => {
+      const v = Number(p?.[key]);
+      out[key] = Number.isFinite(v) ? clamp(v, min, max) : def;
+    });
+    return out;
+  }
+
+  function normalizeFilter(f, custom) {
+    const chip = Array.isArray(f?.chip) ? f.chip : [];
+    return {
+      id: String(f?.id ?? ""),
+      name: String(f?.name ?? "").slice(0, 20) || "ฟิลเตอร์",
+      chip: [HEX.test(chip[0]) ? chip[0] : "#e9d9cf", HEX.test(chip[1]) ? chip[1] : "#b89d8c"],
+      p: normalizeParams(f?.p),
+      custom,
+    };
+  }
+
+  function loadCustomFilters() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]");
+      return Array.isArray(raw) ? raw.map((f) => normalizeFilter(f, true)).filter((f) => f.id) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCustomFilters() {
+    const data = customFilters.map(({ id, name, chip, p }) => ({ id, name, chip, p }));
+    try {
+      localStorage.setItem(CUSTOM_KEY, JSON.stringify(data));
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+
+  const builtinFilters = (window.THAISUAY_FILTERS || []).map((f) => normalizeFilter(f, false));
+  if (!builtinFilters.length) {
+    builtinFilters.push(normalizeFilter({ id: "natural", name: "ธรรมชาติ", p: {} }, false));
+  }
+  let customFilters = loadCustomFilters();
+  const allFilters = () => [...builtinFilters, ...customFilters];
 
   const DEFAULT_SETTINGS = {
     filter: "cream",
@@ -127,6 +121,7 @@
   let resultUrl = null;
   let toastTimer = null;
   let cameraToken = 0;
+  const lab = { open: false, editingId: null, name: "", chip: ["#e9d9cf", "#b89d8c"], p: normalizeParams({}) };
 
   const renderer = createRenderer(canvas);
 
@@ -367,9 +362,14 @@
     return { w, h };
   }
 
+  function findFilter(id) {
+    const list = allFilters();
+    return list.find((f) => f.id === id) || list[0];
+  }
+
   function currentFilter() {
-    const found = FILTERS.find((f) => f.id === settings.filter) || FILTERS[0];
-    return { ...FILTER_DEFAULTS, ...found.p };
+    if (lab.open) return lab.p;
+    return findFilter(settings.filter).p;
   }
 
   function drawParams(size, original) {
@@ -435,7 +435,7 @@
 
   function renderFilterStrip() {
     filterStrip.innerHTML = "";
-    FILTERS.forEach((f) => {
+    allFilters().forEach((f) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "filter-chip";
@@ -445,7 +445,7 @@
 
       const swatch = document.createElement("span");
       swatch.className = "filter-swatch";
-      swatch.style.background = f.chip;
+      swatch.style.background = `linear-gradient(135deg, ${f.chip[0]}, ${f.chip[1]})`;
       const name = document.createElement("span");
       name.textContent = f.name;
 
@@ -459,6 +459,7 @@
     settings.filter = id;
     saveSettings();
     dirty = true;
+    if (lab.open) loadLab(id);
     filterStrip.querySelectorAll(".filter-chip").forEach((el) => {
       const on = el.dataset.id === id;
       el.setAttribute("aria-selected", String(on));
@@ -783,6 +784,168 @@
       startCamera();
     }
   });
+
+  /* ---------- filter lab (developer mode: ?dev=1) ---------- */
+
+  const labEls = {
+    panel: $("lab-panel"),
+    name: $("lab-name"),
+    c1: $("lab-c1"),
+    c2: $("lab-c2"),
+    sliders: $("lab-sliders"),
+    save: $("btn-lab-save"),
+    copy: $("btn-lab-copy"),
+    del: $("btn-lab-delete"),
+    close: $("btn-lab-close"),
+    open: $("btn-lab"),
+  };
+  const labRows = {};
+
+  const fmt = (v) => Number(v).toFixed(2);
+
+  function buildLabSliders() {
+    PARAMS.forEach(({ key, label, min, max, step }) => {
+      const row = document.createElement("label");
+      row.className = "slider";
+      const head = document.createElement("span");
+      head.className = "slider-head";
+      head.append(label);
+      const out = document.createElement("output");
+      head.appendChild(out);
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(min);
+      input.max = String(max);
+      input.step = String(step);
+      input.addEventListener("input", () => {
+        lab.p[key] = Number(input.value);
+        out.textContent = fmt(input.value);
+        dirty = true;
+      });
+      row.append(head, input);
+      labEls.sliders.appendChild(row);
+      labRows[key] = { input, out };
+    });
+  }
+
+  function syncLabUi() {
+    labEls.name.value = lab.name;
+    labEls.c1.value = lab.chip[0];
+    labEls.c2.value = lab.chip[1];
+    PARAMS.forEach(({ key }) => {
+      labRows[key].input.value = String(lab.p[key]);
+      labRows[key].out.textContent = fmt(lab.p[key]);
+    });
+    labEls.del.hidden = !lab.editingId;
+  }
+
+  function loadLab(id) {
+    const f = findFilter(id);
+    lab.p = { ...f.p };
+    lab.chip = [...f.chip];
+    lab.editingId = f.custom ? f.id : null;
+    lab.name = f.custom ? f.name : `${f.name} 2`;
+    syncLabUi();
+    dirty = true;
+  }
+
+  function openLab() {
+    tunePanel.classList.remove("is-open");
+    tuneBtn.setAttribute("aria-expanded", "false");
+    lab.open = true;
+    labEls.panel.hidden = false;
+    loadLab(settings.filter);
+  }
+
+  function closeLab() {
+    lab.open = false;
+    labEls.panel.hidden = true;
+    dirty = true;
+  }
+
+  function labSnapshot(id) {
+    const p = {};
+    PARAMS.forEach(({ key }) => {
+      p[key] = Math.round(lab.p[key] * 1000) / 1000;
+    });
+    return {
+      id,
+      name: labEls.name.value.trim().slice(0, 20) || "ฟิลเตอร์ของฉัน",
+      chip: [labEls.c1.value, labEls.c2.value],
+      p,
+    };
+  }
+
+  function saveLabFilter() {
+    lab.chip = [labEls.c1.value, labEls.c2.value];
+    const id = lab.editingId || `custom-${Date.now().toString(36)}`;
+    const next = normalizeFilter(labSnapshot(id), true);
+    const i = customFilters.findIndex((f) => f.id === id);
+    if (i >= 0) customFilters[i] = next;
+    else customFilters.push(next);
+    saveCustomFilters();
+    lab.editingId = id;
+    lab.name = next.name;
+    settings.filter = id;
+    saveSettings();
+    renderFilterStrip();
+    selectFilter(id);
+    toast("บันทึกฟิลเตอร์ในเครื่องแล้ว");
+  }
+
+  function deleteLabFilter() {
+    if (!lab.editingId) return;
+    customFilters = customFilters.filter((f) => f.id !== lab.editingId);
+    saveCustomFilters();
+    settings.filter = builtinFilters[0].id;
+    saveSettings();
+    renderFilterStrip();
+    selectFilter(settings.filter);
+    toast("ลบฟิลเตอร์แล้ว");
+  }
+
+  function labCode() {
+    const slug =
+      labEls.name.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-filter";
+    const snap = labSnapshot(slug);
+    const body = PARAMS.filter(({ key, def }) => snap.p[key] !== def)
+      .map(({ key }) => `${key}: ${snap.p[key]}`)
+      .join(", ");
+    return [
+      "{",
+      `  id: ${JSON.stringify(snap.id)},`,
+      `  name: ${JSON.stringify(snap.name)},`,
+      `  chip: ${JSON.stringify(snap.chip)},`,
+      `  p: { ${body} },`,
+      "},",
+    ].join("\n");
+  }
+
+  async function copyLabCode() {
+    const text = labCode();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("คัดลอกโค้ดแล้ว วางใน filters.js");
+    } catch {
+      window.prompt("คัดลอกโค้ดนี้ไปวางใน filters.js", text);
+    }
+  }
+
+  if (DEV_MODE) {
+    buildLabSliders();
+    labEls.open.hidden = false;
+    labEls.open.addEventListener("click", () => (lab.open ? closeLab() : openLab()));
+    labEls.close.addEventListener("click", closeLab);
+    labEls.save.addEventListener("click", saveLabFilter);
+    labEls.copy.addEventListener("click", copyLabCode);
+    labEls.del.addEventListener("click", deleteLabFilter);
+    labEls.c1.addEventListener("input", () => {
+      lab.chip[0] = labEls.c1.value;
+    });
+    labEls.c2.addEventListener("input", () => {
+      lab.chip[1] = labEls.c2.value;
+    });
+  }
 
   /* ---------- boot ---------- */
 

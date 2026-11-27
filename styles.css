@@ -1309,3 +1309,112 @@ input[type="range"]::-moz-range-thumb {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
+
+/* Basic adjustments (iPhone Photos style) */
+.adjpanel {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 100%;
+  z-index: 4;
+  display: none;
+  padding: 12px 0 12px;
+  border-radius: 22px;
+  background: rgba(22, 16, 19, 0.82);
+  border: 1px solid rgba(255, 243, 236, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+.adjpanel.is-open {
+  display: block;
+  animation: sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.adj-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 16px;
+  font-size: 0.9rem;
+}
+
+.adj-head output {
+  flex: 1;
+  color: var(--blush);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.adj-head .text-btn {
+  padding: 2px 4px;
+}
+
+#adj-range {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 8px 16px 6px;
+}
+
+.adj-chips {
+  display: flex;
+  gap: 8px;
+  padding: 4px 16px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.adj-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.adj-chip {
+  position: relative;
+  flex: none;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.adj-chip[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--peach), var(--blush));
+  color: #3a1822;
+}
+
+.adj-chip.is-edited::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blush);
+  box-shadow: 0 0 0 2px rgba(22, 16, 19, 0.9);
+}
+
+.adj-chip[aria-pressed="true"].is-edited::after {
+  background: #3a1822;
+  box-shadow: 0 0 0 2px rgba(255, 200, 190, 0.9);
+}
+
+.adj-chip-hsl {
+  color: var(--ink);
+  border: 1px dashed rgba(255, 243, 236, 0.3);
+}
+
+.hsl-head .adj-back {
+  padding: 2px 6px 2px 0;
+  color: var(--ink-dim);
+}
+
+.hsl-head strong {
+  flex: 1;
+  text-align: center;
+}

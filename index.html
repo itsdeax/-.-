@@ -110,8 +110,19 @@
             <button type="button" class="text-btn" id="btn-reset">รีเซ็ต</button>
           </div>
 
+          <div class="adjpanel" id="adj-panel" aria-label="ปรับแต่งภาพ">
+            <div class="adj-head">
+              <strong id="adj-name">แสง</strong>
+              <output id="adj-out">0</output>
+              <button type="button" class="text-btn" id="btn-adj-reset">รีเซ็ต</button>
+            </div>
+            <input type="range" id="adj-range" min="-100" max="100" step="1" value="0" aria-label="ค่าที่ปรับ" />
+            <div class="adj-chips" id="adj-chips" role="group" aria-label="เลือกค่าที่จะปรับ"></div>
+          </div>
+
           <div class="hslpanel" id="hsl-panel" aria-label="ปรับสี HSL">
             <div class="hsl-head">
+              <button type="button" class="text-btn adj-back" id="btn-hsl-back">‹ ปรับแต่ง</button>
               <strong>ปรับสี <span id="hsl-name">แดง</span></strong>
               <button type="button" class="text-btn" id="btn-hsl-reset">รีเซ็ต</button>
             </div>
@@ -143,11 +154,11 @@
               <button type="button" class="strip-tab" role="tab" data-kind="compact" aria-selected="false">คอมแพค</button>
               <button type="button" class="strip-tab" role="tab" data-kind="camera" aria-selected="false">กล้องฟิล์ม</button>
             </div>
-            <button type="button" class="tune-btn" id="btn-hsl" aria-label="ปรับสี HSL มิกซ์สี" aria-expanded="false">
+            <button type="button" class="tune-btn" id="btn-adj" aria-label="ปรับแต่งภาพ แสง สี คอนทราสต์" aria-expanded="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                <circle cx="9" cy="9" r="5" />
-                <circle cx="15" cy="9" r="5" />
-                <circle cx="12" cy="15" r="5" />
+                <circle cx="12" cy="12" r="8" />
+                <path d="M12 4v16" />
+                <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" />
               </svg>
             </button>
             <button type="button" class="tune-btn" id="btn-tune" aria-label="ปรับผิวและความแรงฟิลเตอร์" aria-expanded="false">

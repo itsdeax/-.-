@@ -23,6 +23,23 @@
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+  const ADJUSTS = [
+    { key: "exposure", label: "แสง" },
+    { key: "brilliance", label: "ความสว่างสดใส" },
+    { key: "highlights", label: "ไฮไลท์" },
+    { key: "shadows", label: "เงา" },
+    { key: "contrast", label: "คอนทราสต์" },
+    { key: "brightness", label: "ความสว่าง" },
+    { key: "blackpoint", label: "จุดดำ" },
+    { key: "saturation", label: "ความอิ่มสี" },
+    { key: "vibrance", label: "ความสดสี" },
+    { key: "warmth", label: "อุณหภูมิ" },
+    { key: "tint", label: "เฉดสี" },
+    { key: "sharpness", label: "ความคมชัด" },
+    { key: "definition", label: "ดีไฟน์" },
+    { key: "vignette", label: "วิกเนตต์" },
+  ];
+
   const HSL_BANDS = [
     { name: "แดง", color: "#ff4d4d", center: 0, sigma: 0.05 },
     { name: "ส้ม", color: "#ff9a3c", center: 0.083, sigma: 0.045 },
@@ -114,6 +131,7 @@
     makeup: { lip: "", blush: "", shadow: "", amount: 0.55 },
     skin: { teeth: 0, dark: 0, highlight: 0, contour: 0 },
     hsl: [],
+    adj: {},
   };
 
   const FACE_SLIDERS = [
@@ -168,7 +186,8 @@
   const tunePanel = $("tune-panel");
   const tuneBtn = $("btn-tune");
   const hslPanel = $("hsl-panel");
-  const hslBtn = $("btn-hsl");
+  const hslBtn = $("btn-adj");
+  const adjPanel = $("adj-panel");
   const filterStrip = $("filter-strip");
   const fileInput = $("file-input");
   const resultImg = $("result-img");
@@ -357,9 +376,10 @@
       merged.makeup = sanitizeMakeup(merged.makeup);
       merged.skin = sanitizeSkin(merged.skin);
       merged.hsl = sanitizeHsl(merged.hsl);
+      merged.adj = sanitizeAdj(merged.adj);
       return merged;
     } catch {
-      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null), skin: sanitizeSkin(null), hsl: sanitizeHsl(null) };
+      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null), skin: sanitizeSkin(null), hsl: sanitizeHsl(null), adj: sanitizeAdj(null) };
     }
   }
 
@@ -372,6 +392,17 @@
       })
     );
   }
+
+  function sanitizeAdj(obj) {
+    const out = {};
+    ADJUSTS.forEach(({ key }) => {
+      const v = Number(obj?.[key]);
+      out[key] = Number.isFinite(v) ? Math.round(clamp(v, -1, 1) * 100) / 100 : 0;
+    });
+    return out;
+  }
+
+  const adjActive = () => ADJUSTS.some(({ key }) => Math.abs(settings.adj[key]) > 0.001);
 
   const hslActive = () => settings.hsl.some((band) => band.some((v) => Math.abs(v) > 0.001));
 
@@ -472,6 +503,11 @@
       uniform vec4 u_port;
       uniform vec3 u_shT;
       uniform vec3 u_hiT;
+      uniform float u_adjOn;
+      uniform vec4 u_adjA;
+      uniform vec4 u_adjB;
+      uniform vec4 u_adjC;
+      uniform vec2 u_adjD;
       uniform float u_hslOn;
       uniform vec3 u_hsl[8];
       uniform float u_hc[8];
@@ -680,6 +716,36 @@
         g += n * u_grain;
 
         c = mix(c, g, u_intensity);
+        if (u_adjOn > 0.5) {
+          c *= exp2(u_adjA.x * 1.1);
+          c = pow(clamp(c, 0.0, 1.0), vec3(exp2(-u_adjB.y * 0.7)));
+          float al = luma(c);
+          float sw = 1.0 - smoothstep(0.0, 0.62, al);
+          float hw = smoothstep(0.38, 1.0, al);
+          c = c * (1.0 + u_adjA.w * 0.9 * sw) + u_adjA.w * 0.06 * sw;
+          c *= 1.0 + u_adjA.z * 0.4 * hw;
+          c = c * (1.0 + u_adjA.y * (0.5 * sw - 0.25 * hw)) + u_adjA.y * 0.04 * sw;
+          c = (c - 0.5) * (1.0 + u_adjB.x * 0.6 + u_adjA.y * 0.1) + 0.5;
+          float bpv = u_adjB.z * 0.12;
+          c = (c - bpv) / (1.0 - bpv);
+          c *= vec3(1.0 + u_adjC.y * 0.12 + u_adjC.z * 0.05, 1.0 - u_adjC.z * 0.09, 1.0 - u_adjC.y * 0.16 + u_adjC.z * 0.05);
+          c = clamp(c, 0.0, 1.0);
+          float ach = max(max(c.r, c.g), c.b) - min(min(c.r, c.g), c.b);
+          float sf = 1.0 + u_adjB.w + u_adjC.x * (1.0 - ach) * 0.9;
+          c = mix(vec3(luma(c)), c, max(sf, 0.0));
+          if (abs(u_adjD.x) > 0.001) {
+            c += (orig - blur4) * u_adjD.x * 1.3;
+          }
+          if (abs(u_adjC.w) > 0.001) {
+            vec2 wsp = u_texel * 7.0;
+            vec3 wide = (texture2D(u_tex, uv + vec2(wsp.x, 0.0)).rgb + texture2D(u_tex, uv - vec2(wsp.x, 0.0)).rgb
+                       + texture2D(u_tex, uv + vec2(0.0, wsp.y)).rgb + texture2D(u_tex, uv - vec2(0.0, wsp.y)).rgb) * 0.25;
+            c += (orig - wide) * u_adjC.w * 0.8;
+          }
+          vec2 aq = (v_uv - 0.5) * vec2(1.0, 1.15);
+          c *= 1.0 - u_adjD.y * 0.7 * smoothstep(0.25, 0.85, length(aq));
+          c = clamp(c, 0.0, 1.0);
+        }
         if (u_hslOn > 0.5) c = hslMix(c);
 
         if (u_look.x > 0.001) {
@@ -747,7 +813,7 @@
       "u_intensity", "u_exposure", "u_contrast", "u_sat", "u_temp", "u_tint",
       "u_fade", "u_vig", "u_grain", "u_mono", "u_seed",
       "u_face", "u_fc", "u_fax", "u_fy", "u_eyeA", "u_eyeB", "u_nose", "u_rs", "u_eyes",
-      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look", "u_port", "u_shT", "u_hiT", "u_hslOn", "u_hsl", "u_hc", "u_hsg",
+      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look", "u_port", "u_shT", "u_hiT", "u_hslOn", "u_adjOn", "u_adjA", "u_adjB", "u_adjC", "u_adjD", "u_hsl", "u_hc", "u_hsg",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
@@ -826,6 +892,11 @@
         gl.uniform1f(uniforms.u_maskOn, p.maskOn ? 1 : 0);
         gl.uniform1f(uniforms.u_fxOn, p.fxOn ? 1 : 0);
         gl.uniform3f(uniforms.u_look, p.look.bloom, p.look.leak, p.look.aber);
+        gl.uniform1f(uniforms.u_adjOn, p.adjOn ? 1 : 0);
+        gl.uniform4fv(uniforms.u_adjA, p.adj.slice(0, 4));
+        gl.uniform4fv(uniforms.u_adjB, p.adj.slice(4, 8));
+        gl.uniform4fv(uniforms.u_adjC, p.adj.slice(8, 12));
+        gl.uniform2fv(uniforms.u_adjD, p.adj.slice(12, 14));
         gl.uniform1f(uniforms.u_hslOn, p.hslOn ? 1 : 0);
         gl.uniform3fv(uniforms.u_hsl, p.hsl);
         gl.uniform1fv(uniforms.u_hc, HSL_CENTERS);
@@ -903,6 +974,8 @@
       fxOn: !original && face.hasFx && Boolean(face.geo),
       reshape: settings.face,
       look: original || lab.open ? { bloom: 0, leak: 0, aber: 0 } : findFilter(settings.filter).fx,
+      adjOn: !original && !lab.open && adjActive(),
+      adj: new Float32Array(ADJUSTS.map(({ key }) => settings.adj[key])),
       hslOn: !original && !lab.open && hslActive(),
       hsl: new Float32Array(settings.hsl.flat()),
       split: original || lab.open ? { sh: [0, 0, 0], hi: [0, 0, 0] } : findFilter(settings.filter).split,
@@ -1553,7 +1626,7 @@
   });
 
   tuneBtn.addEventListener("click", () => setPanelOpen("tune"));
-  hslBtn.addEventListener("click", () => setPanelOpen("hsl"));
+  hslBtn.addEventListener("click", () => setPanelOpen("adj"));
 
   Object.entries(sliders).forEach(([key, { input, out }]) => {
     input.addEventListener("input", () => {
@@ -1585,14 +1658,16 @@
     const tuneOpen = which === "tune" && !tunePanel.classList.contains("is-open");
     const faceOpen = which === "face" && !facePanel.classList.contains("is-open");
     const hslOpen = which === "hsl" && !hslPanel.classList.contains("is-open");
+    const adjOpen = which === "adj" && !adjPanel.classList.contains("is-open");
     hslPanel.classList.toggle("is-open", hslOpen);
-    hslBtn.setAttribute("aria-expanded", String(hslOpen));
+    adjPanel.classList.toggle("is-open", adjOpen);
+    hslBtn.setAttribute("aria-expanded", String(hslOpen || adjOpen));
     tunePanel.classList.toggle("is-open", tuneOpen);
     tuneBtn.setAttribute("aria-expanded", String(tuneOpen));
     facePanel.classList.toggle("is-open", faceOpen);
     faceBtn.setAttribute("aria-expanded", String(faceOpen));
     controlsEl.classList.toggle("face-open", faceOpen);
-    screenCamera.classList.toggle("panel-open", tuneOpen || faceOpen || hslOpen);
+    screenCamera.classList.toggle("panel-open", tuneOpen || faceOpen || hslOpen || adjOpen);
     if (faceOpen) {
       syncFacePanel();
       FaceKit?.load().catch(() => {});
@@ -1709,6 +1784,77 @@
     input.addEventListener("change", saveSettings);
     wrap.append(head, input);
     return { wrap, input, out };
+  }
+
+  const adjUi = { key: ADJUSTS[0].key, chips: [] };
+
+  function fmtSigned(v) {
+    return v > 0 ? `+${v}` : String(v);
+  }
+
+  function syncAdjPanel() {
+    const range = $("adj-range");
+    const v = Math.round(settings.adj[adjUi.key] * 100);
+    range.value = String(v);
+    $("adj-out").textContent = fmtSigned(v);
+    $("adj-name").textContent = ADJUSTS.find((x) => x.key === adjUi.key).label;
+    range.style.setProperty("--fill", `${(v + 100) / 2}%`);
+    adjUi.chips.forEach((chip) => {
+      const k = chip.dataset.key;
+      if (!k) return;
+      chip.setAttribute("aria-pressed", String(k === adjUi.key));
+      chip.classList.toggle("is-edited", Math.abs(settings.adj[k]) > 0.001);
+    });
+  }
+
+  function buildAdjPanel() {
+    const box = $("adj-chips");
+    ADJUSTS.forEach(({ key, label }) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "adj-chip";
+      btn.dataset.key = key;
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        adjUi.key = key;
+        syncAdjPanel();
+        btn.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+      });
+      box.appendChild(btn);
+      adjUi.chips.push(btn);
+    });
+    const mix = document.createElement("button");
+    mix.type = "button";
+    mix.className = "adj-chip adj-chip-hsl";
+    mix.textContent = "มิกซ์สี HSL";
+    mix.addEventListener("click", () => setPanelOpen("hsl"));
+    box.appendChild(mix);
+    adjUi.chips.push(mix);
+
+    const range = $("adj-range");
+    range.addEventListener("input", () => {
+      settings.adj[adjUi.key] = Number(range.value) / 100;
+      syncAdjPanel();
+      dirty = true;
+    });
+    range.addEventListener("change", saveSettings);
+    range.addEventListener("dblclick", () => {
+      range.value = "0";
+      range.dispatchEvent(new Event("input"));
+      saveSettings();
+    });
+    $("btn-adj-reset").addEventListener("click", () => {
+      if (Math.abs(settings.adj[adjUi.key]) > 0.001) {
+        settings.adj[adjUi.key] = 0;
+      } else {
+        settings.adj = sanitizeAdj(null);
+      }
+      saveSettings();
+      syncAdjPanel();
+      dirty = true;
+    });
+    $("btn-hsl-back").addEventListener("click", () => setPanelOpen("adj"));
+    syncAdjPanel();
   }
 
   const hslUi = { band: 0, dots: [], sliders: [] };
@@ -1908,6 +2054,7 @@
 
   buildFacePanel();
   buildHslPanel();
+  buildAdjPanel();
   syncFacePanel();
   faceBtn.addEventListener("click", () => setPanelOpen("face"));
 
@@ -2063,6 +2210,7 @@
 
   function openLab() {
     hslPanel.classList.remove("is-open");
+    adjPanel.classList.remove("is-open");
     hslBtn.setAttribute("aria-expanded", "false");
     tunePanel.classList.remove("is-open");
     tuneBtn.setAttribute("aria-expanded", "false");

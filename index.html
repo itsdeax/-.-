@@ -54,6 +54,7 @@
                 <path d="M7.5 15h9" />
               </svg>
             </button>
+            <button type="button" class="icon-btn icon-btn-text" id="btn-aspect" aria-label="สัดส่วนภาพ">3:4</button>
             <button type="button" class="icon-btn" id="btn-flip" aria-label="สลับกล้องหน้า/หลัง">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 7h4v4" />
@@ -77,12 +78,6 @@
               <span class="vf-label" id="vf-label"></span>
             </div>
             <video id="source-video" class="offscreen" autoplay playsinline muted></video>
-            <div class="lens" id="lens" role="group" aria-label="ระยะเลนส์">
-              <button type="button" class="lens-btn" aria-pressed="false">1×</button>
-              <button type="button" class="lens-btn" aria-pressed="false">2×</button>
-              <button type="button" class="lens-btn" aria-pressed="false">3×</button>
-              <button type="button" class="lens-btn" aria-pressed="false">5×</button>
-            </div>
             <p class="stage-hint" id="stage-hint">กำลังเปิดกล้อง…</p>
             <p class="stage-badge" id="compare-badge" hidden>ภาพต้นฉบับ</p>
             <p class="stage-debug" id="stage-debug" hidden></p>
@@ -93,6 +88,12 @@
         </div>
 
         <div class="controls">
+            <div class="lens" id="lens" role="group" aria-label="ระยะเลนส์">
+              <button type="button" class="lens-btn" aria-pressed="false">1×</button>
+              <button type="button" class="lens-btn" aria-pressed="false">2×</button>
+              <button type="button" class="lens-btn" aria-pressed="false">3×</button>
+              <button type="button" class="lens-btn" aria-pressed="false">5×</button>
+            </div>
           <div class="tune" id="tune-panel" aria-label="ปรับความสวย">
             <label class="slider">
               <span class="slider-head">ผิวเนียน <output id="out-smooth">45</output></span>

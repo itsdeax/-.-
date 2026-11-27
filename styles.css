@@ -1211,3 +1211,101 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
   gap: 8px;
 }
+
+/* Immersive layout: full-width preview, floating top bar, overlaid controls in 9:16 */
+#screen-camera .topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  padding-bottom: 18px;
+  background: linear-gradient(rgba(10, 7, 9, 0.55), rgba(10, 7, 9, 0));
+  pointer-events: none;
+}
+
+#screen-camera .topbar > * {
+  pointer-events: auto;
+}
+
+#screen-camera .topbar-group,
+#screen-camera .brand {
+  pointer-events: auto;
+}
+
+.screen-fill .topbar {
+  background: linear-gradient(rgba(255, 233, 214, 0.7), rgba(255, 233, 214, 0));
+}
+
+#screen-camera .stage-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+#screen-camera[data-aspect="9:16"] .stage-wrap {
+  position: absolute;
+  inset: 0;
+  align-items: flex-start;
+}
+
+#screen-camera .stage-wrap {
+  container-type: size;
+}
+
+#screen-camera .stage {
+  width: min(100cqw, calc(100cqh * var(--ar, 0.75)));
+  height: auto;
+  max-width: 100%;
+  aspect-ratio: var(--ar, 0.75);
+  border-radius: 0 0 28px 28px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+#screen-camera[data-aspect="9:16"] .stage {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#screen-camera .controls {
+  position: relative;
+  z-index: 3;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+#screen-camera[data-aspect="9:16"] .controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-top: 40px;
+  background: linear-gradient(rgba(10, 7, 9, 0), rgba(10, 7, 9, 0.72) 42%, rgba(10, 7, 9, 0.9));
+}
+
+#screen-camera .controls .lens {
+  bottom: calc(100% + 12px);
+}
+
+#screen-camera[data-aspect="9:16"] .controls .lens {
+  bottom: calc(100% - 22px);
+}
+
+#screen-camera[data-aspect="9:16"].screen-fill .controls {
+  background: linear-gradient(rgba(255, 233, 214, 0), rgba(255, 233, 214, 0.8) 42%, rgba(255, 233, 214, 0.95));
+}
+
+#screen-camera .stage-pill {
+  left: 12px;
+  top: calc(var(--safe-top) + 64px);
+  bottom: auto;
+}
+
+.icon-btn-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}

@@ -109,6 +109,15 @@
             <button type="button" class="text-btn" id="btn-reset">รีเซ็ต</button>
           </div>
 
+          <div class="hslpanel" id="hsl-panel" aria-label="ปรับสี HSL">
+            <div class="hsl-head">
+              <strong>ปรับสี <span id="hsl-name">แดง</span></strong>
+              <button type="button" class="text-btn" id="btn-hsl-reset">รีเซ็ต</button>
+            </div>
+            <div class="hsl-dots" id="hsl-dots" role="group" aria-label="เลือกสี"></div>
+            <div class="hsl-sliders" id="hsl-sliders"></div>
+          </div>
+
           <div class="facepanel" id="face-panel" aria-label="ปรับโครงหน้าและเมคอัพ">
             <div class="face-head">
               <div class="face-tabs" role="tablist">
@@ -133,6 +142,13 @@
               <button type="button" class="strip-tab" role="tab" data-kind="compact" aria-selected="false">คอมแพค</button>
               <button type="button" class="strip-tab" role="tab" data-kind="camera" aria-selected="false">กล้องฟิล์ม</button>
             </div>
+            <button type="button" class="tune-btn" id="btn-hsl" aria-label="ปรับสี HSL มิกซ์สี" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="9" cy="9" r="5" />
+                <circle cx="15" cy="9" r="5" />
+                <circle cx="12" cy="15" r="5" />
+              </svg>
+            </button>
             <button type="button" class="tune-btn" id="btn-tune" aria-label="ปรับผิวและความแรงฟิลเตอร์" aria-expanded="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                 <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />

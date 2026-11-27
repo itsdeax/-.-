@@ -1033,3 +1033,18 @@ input[type="range"]::-moz-range-thumb {
   color: #2b1119;
   background: linear-gradient(135deg, #ffe08a, #ffb84d);
 }
+
+/* Flash: white screen burst for the front camera */
+.flash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #fff8ee;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.flash-screen.is-on {
+  opacity: 1;
+}

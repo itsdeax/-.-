@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="flash-screen" id="flash-screen" aria-hidden="true"></div>
     <div id="app">
       <section id="screen-camera" class="screen is-active" aria-label="กล้องถ่ายรูป">
         <header class="topbar">
@@ -47,6 +48,12 @@
                 <path d="M7.5 15h9" />
               </svg>
               <span class="icon-btn-label">Lab</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-flash" aria-label="แฟลช" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2.5L5.5 13.5H11L10 21.5L18.5 10H12.5z" />
+              </svg>
+              <span class="icon-btn-label">แฟลช</span>
             </button>
             <button type="button" class="icon-btn" id="btn-flip" aria-label="สลับกล้องหน้า/หลัง">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

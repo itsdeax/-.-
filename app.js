@@ -95,6 +95,7 @@
     intensity: 1,
     timer: 0,
     fill: false,
+    flash: false,
     facing: "user",
     face: { slim: 0, jaw: 0, chin: 0, forehead: 0, eyes: 0, nose: 0, mouth: 0 },
     makeup: { lip: "", blush: "", shadow: "", amount: 0.55 },
@@ -161,6 +162,8 @@
   const timerBtn = $("btn-timer");
   const timerLabel = $("timer-label");
   const lightBtn = $("btn-light");
+  const flashBtn = $("btn-flash");
+  const flashScreen = $("flash-screen");
 
   const sliders = {
     smooth: { input: $("range-smooth"), out: $("out-smooth") },
@@ -170,6 +173,9 @@
 
   let settings = loadSettings();
   let stream = null;
+  let torchSupported = false;
+  let flashBoost = false;
+  let capturing = false;
   let mode = "camera";
   let imageSource = null;
   let comparing = false;
@@ -819,7 +825,7 @@
       smooth: original ? 0 : settings.smooth,
       glow: original ? 0 : settings.glow,
       intensity: original ? 0 : settings.intensity,
-      f: currentFilter(),
+      f: flashBoost ? boostForFlash(currentFilter()) : currentFilter(),
       face: !original && face.geo && faceFeaturesOn() ? face.geo : null,
       maskOn: !original && face.hasMask && Boolean(face.geo),
       fxOn: !original && face.hasFx && Boolean(face.geo),
@@ -829,6 +835,10 @@
       port: original || lab.open ? { glow: 0, warm: 0, mute: 0, cool: 0 } : findFilter(settings.filter).port,
       seed: (performance.now() % 1000) / 1000,
     };
+  }
+
+  function boostForFlash(p) {
+    return { ...p, exposure: p.exposure + 0.18, contrast: p.contrast * 1.08 };
   }
 
   function sourceReady() {
@@ -976,6 +986,8 @@
   function syncToolbar() {
     timerLabel.textContent = settings.timer ? `${settings.timer} วิ` : "ปิด";
     timerBtn.classList.toggle("is-on", settings.timer > 0);
+    flashBtn.setAttribute("aria-pressed", String(settings.flash));
+    flashBtn.hidden = mode !== "camera";
     lightBtn.setAttribute("aria-pressed", String(settings.fill));
     lightBtn.hidden = settings.facing !== "user" || mode !== "camera";
     screenCamera.classList.toggle("screen-fill", settings.fill && !lightBtn.hidden);
@@ -990,6 +1002,7 @@
       stream = null;
     }
     video.srcObject = null;
+    torchSupported = false;
   }
 
   function watchFirstFrames(token) {
@@ -1033,6 +1046,8 @@
         return;
       }
       stream = media;
+      const track = media.getVideoTracks()[0];
+      torchSupported = Boolean(track?.getCapabilities?.().torch);
       video.srcObject = media;
       await video.play();
       shutterBtn.disabled = false;
@@ -1201,18 +1216,59 @@
     });
   }
 
-  async function takePhoto() {
-    if (!renderer || !sourceReady()) return;
-    flashEl.classList.remove("is-on");
-    void flashEl.offsetWidth;
-    flashEl.classList.add("is-on");
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    const blob = await renderToBlob();
-    if (!blob) {
-      toast("บันทึกภาพไม่สำเร็จ ลองอีกครั้ง");
-      return;
+  async function setTorch(on) {
+    const track = stream?.getVideoTracks()[0];
+    if (!track) return false;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: on }] });
+      return true;
+    } catch {
+      return false;
     }
-    showResult(blob);
+  }
+
+  async function fireFlash() {
+    if (settings.facing === "user") {
+      flashScreen.classList.add("is-on");
+      await wait(420);
+      return "screen";
+    }
+    if (torchSupported && (await setTorch(true))) {
+      await wait(480);
+      return "torch";
+    }
+    flashBoost = true;
+    return "digital";
+  }
+
+  async function endFlash(kind) {
+    if (kind === "screen") flashScreen.classList.remove("is-on");
+    else if (kind === "torch") await setTorch(false);
+    else if (kind === "digital") flashBoost = false;
+  }
+
+  async function takePhoto() {
+    if (!renderer || !sourceReady() || capturing) return;
+    capturing = true;
+    let kind = null;
+    try {
+      if (settings.flash && mode === "camera") kind = await fireFlash();
+      flashEl.classList.remove("is-on");
+      void flashEl.offsetWidth;
+      flashEl.classList.add("is-on");
+
+      const blob = await renderToBlob();
+      if (!blob) {
+        toast("บันทึกภาพไม่สำเร็จ ลองอีกครั้ง");
+        return;
+      }
+      showResult(blob);
+    } finally {
+      await endFlash(kind);
+      capturing = false;
+    }
   }
 
   function runCountdown(seconds) {
@@ -1375,6 +1431,17 @@
     settings.timer = TIMER_STEPS[(i + 1) % TIMER_STEPS.length];
     saveSettings();
     syncToolbar();
+  });
+
+  flashBtn.addEventListener("click", () => {
+    settings.flash = !settings.flash;
+    saveSettings();
+    syncToolbar();
+    if (settings.flash && settings.facing !== "user" && !torchSupported) {
+      toast("เครื่องนี้เปิดไฟแฟลชจริงไม่ได้ ใช้แฟลชจำลองแทน");
+    } else {
+      toast(settings.flash ? "แฟลช: เปิด" : "แฟลช: ปิด");
+    }
   });
 
   lightBtn.addEventListener("click", () => {

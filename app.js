@@ -82,7 +82,7 @@
     filter: "clean",
     smooth: 0.45,
     glow: 0.3,
-    intensity: 0.85,
+    intensity: 1,
     timer: 0,
     fill: false,
     facing: "user",
@@ -522,6 +522,11 @@
         }
         c += mask * u_glow * 0.1 * (1.0 - c);
 
+        vec2 sp = u_texel * 1.5;
+        vec3 blur4 = (texture2D(u_tex, uv + vec2(sp.x, 0.0)).rgb + texture2D(u_tex, uv - vec2(sp.x, 0.0)).rgb
+                    + texture2D(u_tex, uv + vec2(0.0, sp.y)).rgb + texture2D(u_tex, uv - vec2(0.0, sp.y)).rgb) * 0.25;
+        vec3 detail = (orig - blur4) * 0.55 * (1.0 - mask * 0.75);
+
         if (u_maskOn > 0.5) {
           vec4 m = texture2D(u_mask, uv);
           if (m.a > 0.003) {
@@ -557,6 +562,13 @@
         float l = luma(g);
         g = mix(vec3(l), g, u_sat);
         g = mix(g, vec3(luma(g)), u_mono);
+
+        g = clamp(g + detail, 0.0, 1.0);
+        g = mix(g, g * g * (3.0 - 2.0 * g), 0.28);
+        g = clamp((g - 0.022) / 0.96, 0.0, 1.0);
+        float chroma = max(max(g.r, g.g), g.b) - min(min(g.r, g.g), g.b);
+        g = mix(vec3(luma(g)), g, 1.0 + 0.18 * (1.0 - chroma) * (1.0 - u_mono));
+
         g = u_fade + g * (1.0 - u_fade);
 
         vec2 q = (v_uv - 0.5) * vec2(1.0, 1.15);

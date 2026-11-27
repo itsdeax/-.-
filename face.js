@@ -233,20 +233,24 @@
         [LM.faceLeft, LM.cheekL, LM.mouthL],
         [LM.faceRight, LM.cheekR, LM.mouthR],
       ].forEach(([ear, cheek, mouth]) => {
-        const x1 = X(ear) + (X(cheek) - X(ear)) * 0.55;
-        const y1 = Y(ear) + (Y(cheek) - Y(ear)) * 0.55;
-        const x2 = X(cheek) + (X(mouth) - X(cheek)) * 0.55;
-        const y2 = Y(cheek) + (Y(mouth) - Y(cheek)) * 0.55;
-        ctx.lineCap = "round";
-        ctx.lineWidth = faceW * 0.1;
-        ctx.strokeStyle = rgba("#8c5a46", 0.5 * makeup.contour);
-        ctx.shadowColor = rgba("#8c5a46", 0.7 * makeup.contour);
-        ctx.shadowBlur = faceW * 0.06;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        const sx = X(ear) + (X(cheek) - X(ear)) * 0.6;
+        const sy = Y(ear) + (Y(cheek) - Y(ear)) * 0.6;
+        const ex = X(cheek) + (X(mouth) - X(cheek)) * 0.4;
+        const ey = Y(cheek) + (Y(mouth) - Y(cheek)) * 0.4;
+        const len = Math.hypot(ex - sx, ey - sy) * 0.62;
+        const rot = Math.atan2(ey - sy, ex - sx);
+        const c = Math.min(1, makeup.contour);
+        ctx.save();
+        ctx.translate((sx + ex) / 2, (sy + ey) / 2);
+        ctx.rotate(rot);
+        ctx.scale(1, (faceW * 0.075) / len);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, len);
+        g.addColorStop(0, rgba("#7a5648", 0.4 * c));
+        g.addColorStop(0.5, rgba("#7a5648", 0.2 * c));
+        g.addColorStop(1, rgba("#7a5648", 0));
+        ctx.fillStyle = g;
+        ctx.fillRect(-len, -len, len * 2, len * 2);
+        ctx.restore();
       });
     }
 

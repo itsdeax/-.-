@@ -75,16 +75,26 @@
     timer: 0,
     fill: false,
     facing: "user",
-    face: { slim: 0, jaw: 0, chin: 0, eyes: 0, nose: 0 },
+    face: { slim: 0, jaw: 0, chin: 0, forehead: 0, eyes: 0, nose: 0, mouth: 0 },
     makeup: { lip: "", blush: "", shadow: "", amount: 0.7 },
+    skin: { teeth: 0, dark: 0, highlight: 0, contour: 0 },
   };
 
   const FACE_SLIDERS = [
     { key: "slim", label: "หน้าเรียว", min: 0 },
     { key: "jaw", label: "กรามเล็ก", min: 0 },
     { key: "chin", label: "คาง สั้น ↔ ยาว", min: -100 },
+    { key: "forehead", label: "หน้าผาก ต่ำ ↔ สูง", min: -100 },
     { key: "eyes", label: "ตาโต", min: 0 },
     { key: "nose", label: "จมูกเล็ก", min: 0 },
+    { key: "mouth", label: "ปาก เล็ก ↔ ใหญ่", min: -100 },
+  ];
+
+  const SKIN_SLIDERS = [
+    { key: "teeth", label: "ฟันขาว" },
+    { key: "dark", label: "ลดใต้ตาคล้ำ" },
+    { key: "highlight", label: "ไฮไลท์ สันจมูก/โหนก" },
+    { key: "contour", label: "เฉดโหนกแก้ม" },
   ];
 
   const MAKEUP_ROWS = [
@@ -155,6 +165,8 @@
   const face = {
     tracker: FaceKit ? FaceKit.createTracker() : null,
     mask: FaceKit ? FaceKit.createMask() : null,
+    fx: FaceKit ? FaceKit.createMask() : null,
+    hasFx: false,
     ready: false,
     loading: false,
     failed: false,
@@ -170,7 +182,8 @@
       settings.makeup.lip ||
         settings.makeup.blush ||
         settings.makeup.shadow ||
-        Object.values(settings.face).some((v) => Math.abs(v) > 0.001)
+        Object.values(settings.face).some((v) => Math.abs(v) > 0.001) ||
+        Object.values(settings.skin).some((v) => v > 0.01)
     );
 
   function setFaceStatus(text) {
@@ -189,14 +202,17 @@
     if (!pts) {
       face.geo = null;
       face.hasMask = false;
+      face.hasFx = false;
       setFaceStatus(faceFeaturesOn() ? "ไม่พบใบหน้า" : "");
       dirty = true;
       return;
     }
     const asp = currentAspect();
     face.geo = { ...FaceKit.geometry(pts, asp), asp };
-    face.hasMask = FaceKit.drawMakeup(face.mask, pts, asp, settings.makeup);
+    face.hasMask = FaceKit.drawMakeup(face.mask, pts, asp, { ...settings.makeup, contour: settings.skin.contour });
     if (face.hasMask && renderer) renderer.uploadMask(face.mask.canvas);
+    face.hasFx = FaceKit.drawFx(face.fx, pts, asp, settings.skin);
+    if (face.hasFx && renderer) renderer.uploadFx(face.fx.canvas);
     setFaceStatus("พบใบหน้า");
     dirty = true;
   }
@@ -239,6 +255,7 @@
     if (!faceFeaturesOn()) {
       face.geo = null;
       face.hasMask = false;
+      face.hasFx = false;
       setFaceStatus("");
       dirty = true;
       return;
@@ -254,6 +271,7 @@
     face.tracker?.reset();
     face.geo = null;
     face.hasMask = false;
+    face.hasFx = false;
     if (face.ready && mode === "camera") FaceKit.setMode("VIDEO").catch(() => {});
   }
 
@@ -284,9 +302,10 @@
       if (merged.intensity < MIN_VISIBLE_INTENSITY) merged.intensity = DEFAULT_SETTINGS.intensity;
       merged.face = sanitizeFace(merged.face);
       merged.makeup = sanitizeMakeup(merged.makeup);
+      merged.skin = sanitizeSkin(merged.skin);
       return merged;
     } catch {
-      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null) };
+      return { ...DEFAULT_SETTINGS, face: sanitizeFace(null), makeup: sanitizeMakeup(null), skin: sanitizeSkin(null) };
     }
   }
 
@@ -295,6 +314,15 @@
     FACE_SLIDERS.forEach(({ key, min }) => {
       const v = Number(f?.[key]);
       out[key] = Number.isFinite(v) ? clamp(v, min / 100, 1) : 0;
+    });
+    return out;
+  }
+
+  function sanitizeSkin(k) {
+    const out = {};
+    SKIN_SLIDERS.forEach(({ key }) => {
+      const v = Number(k?.[key]);
+      out[key] = Number.isFinite(v) ? clamp(v, 0, 1) : 0;
     });
     return out;
   }
@@ -369,6 +397,11 @@
       uniform float u_eyes;
       uniform sampler2D u_mask;
       uniform float u_maskOn;
+      uniform vec3 u_mouth;
+      uniform vec2 u_fh;
+      uniform vec4 u_rs2;
+      uniform sampler2D u_fx;
+      uniform float u_fxOn;
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -437,6 +470,16 @@
           l = magnify(l, u_eyeB);
         }
 
+        vec2 dm = l - u_mouth.xy;
+        float lm = length(dm);
+        if (lm < u_mouth.z) {
+          float k = 1.0 - lm / u_mouth.z;
+          l = u_mouth.xy + dm * (1.0 - u_rs2.x * 0.3 * k * k);
+        }
+
+        vec2 df = l - u_fh;
+        l.y -= u_rs2.y * 0.14 * exp(-dot(df, df) / 0.2);
+
         vec2 p2 = (u_fax * l.x + ay * l.y) * u_face.z;
         return u_fc + p2 / asp;
       }
@@ -462,6 +505,22 @@
             vec3 col = m.rgb / m.a;
             vec3 target = col * clamp(luma(c) * 1.25 + 0.2, 0.0, 1.15);
             c = mix(c, target, m.a);
+          }
+        }
+
+        if (u_fxOn > 0.5) {
+          vec3 fx = texture2D(u_fx, uv).rgb;
+          if (fx.r > 0.003) {
+            float teeth = smoothstep(0.35, 0.62, luma(c));
+            vec3 white = mix(c, vec3(luma(c)), 0.6) * 1.18;
+            c = mix(c, white, fx.r * teeth);
+          }
+          if (fx.g > 0.003) {
+            c = c + (1.0 - c) * fx.g * 0.3;
+            c = mix(c, vec3(luma(c)), fx.g * 0.2);
+          }
+          if (fx.b > 0.003) {
+            c += fx.b * 0.22 * (1.0 - c) * vec3(1.0, 0.97, 0.94);
           }
         }
 
@@ -533,7 +592,7 @@
       "u_intensity", "u_exposure", "u_contrast", "u_sat", "u_temp", "u_tint",
       "u_fade", "u_vig", "u_grain", "u_mono", "u_seed",
       "u_face", "u_fc", "u_fax", "u_fy", "u_eyeA", "u_eyeB", "u_nose", "u_rs", "u_eyes",
-      "u_mask", "u_maskOn",
+      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
@@ -547,8 +606,17 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    const fxTexture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, fxTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(uniforms.u_mask, 1);
+    gl.uniform1i(uniforms.u_fx, 2);
 
     return {
       info() {
@@ -568,6 +636,12 @@
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.activeTexture(gl.TEXTURE0);
+      },
+      uploadFx(source) {
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, fxTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
         gl.activeTexture(gl.TEXTURE0);
       },
       upload(source) {
@@ -595,6 +669,7 @@
         const fc = p.face;
         gl.uniform4f(uniforms.u_face, fc ? 1 : 0, fc ? fc.asp : 1, fc ? fc.width : 1, 0);
         gl.uniform1f(uniforms.u_maskOn, p.maskOn ? 1 : 0);
+        gl.uniform1f(uniforms.u_fxOn, p.fxOn ? 1 : 0);
         if (fc) {
           gl.uniform2f(uniforms.u_fc, fc.center[0], fc.center[1]);
           gl.uniform2f(uniforms.u_fax, fc.axis[0], fc.axis[1]);
@@ -604,6 +679,9 @@
           gl.uniform4f(uniforms.u_nose, fc.nose[0], fc.nose[1], fc.nose[2], fc.nose[3]);
           gl.uniform4f(uniforms.u_rs, p.reshape.slim, p.reshape.jaw, p.reshape.chin, p.reshape.nose);
           gl.uniform1f(uniforms.u_eyes, p.reshape.eyes);
+          gl.uniform3f(uniforms.u_mouth, fc.mouth[0], fc.mouth[1], fc.mouth[2]);
+          gl.uniform2f(uniforms.u_fh, fc.forehead[0], fc.forehead[1]);
+          gl.uniform4f(uniforms.u_rs2, p.reshape.mouth, p.reshape.forehead, 0, 0);
         }
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       },
@@ -658,6 +736,7 @@
       f: currentFilter(),
       face: !original && face.geo && faceFeaturesOn() ? face.geo : null,
       maskOn: !original && face.hasMask && Boolean(face.geo),
+      fxOn: !original && face.hasFx && Boolean(face.geo),
       reshape: settings.face,
       seed: (performance.now() % 1000) / 1000,
     };
@@ -1078,34 +1157,169 @@
     faceBtn.setAttribute("aria-expanded", String(faceOpen));
     controlsEl.classList.toggle("face-open", faceOpen);
     if (faceOpen) {
+      syncFacePanel();
       FaceKit?.load().catch(() => {});
       refreshFace();
     }
   }
 
+  const LOOKS = [
+    { id: "off", name: "ไม่ใช้", chip: ["#2a2024", "#2a2024"], none: true },
+    {
+      id: "natural",
+      name: "ธรรมชาติ",
+      chip: ["#f6dcc9", "#e7b79f"],
+      filter: "clean",
+      smooth: 0.4,
+      glow: 0.3,
+      face: { slim: 0.15, jaw: 0.1, eyes: 0.2, nose: 0.1 },
+      skin: { teeth: 0.2, dark: 0.3, highlight: 0.2 },
+      makeup: { lip: "#d7848a", blush: "#ff9a85", amount: 0.5 },
+    },
+    {
+      id: "sweet",
+      name: "หวานใส",
+      chip: ["#ffe1e4", "#f59bb0"],
+      filter: "milk",
+      smooth: 0.55,
+      glow: 0.4,
+      face: { slim: 0.3, jaw: 0.2, eyes: 0.4, nose: 0.2 },
+      skin: { teeth: 0.35, dark: 0.5, highlight: 0.35 },
+      makeup: { lip: "#ee6c5a", blush: "#ff9a85", shadow: "#d9948f", amount: 0.6 },
+    },
+    {
+      id: "korean",
+      name: "เกาหลี",
+      chip: ["#e8f2fb", "#f08aa8"],
+      filter: "glass",
+      smooth: 0.6,
+      glow: 0.45,
+      face: { slim: 0.4, jaw: 0.35, chin: -0.1, eyes: 0.35, nose: 0.3, mouth: -0.1 },
+      skin: { teeth: 0.3, dark: 0.5, highlight: 0.4, contour: 0.15 },
+      makeup: { lip: "#e0567c", blush: "#ff7fa6", shadow: "#a77a9c", amount: 0.6 },
+    },
+    {
+      id: "sharp",
+      name: "คมสวย",
+      chip: ["#e3e8ee", "#b3283c"],
+      filter: "chrome",
+      smooth: 0.35,
+      glow: 0.2,
+      face: { slim: 0.25, jaw: 0.3, chin: 0.1, eyes: 0.2, nose: 0.35 },
+      skin: { teeth: 0.3, dark: 0.3, highlight: 0.5, contour: 0.5 },
+      makeup: { lip: "#c8283a", blush: "#e86a86", shadow: "#8a5a44", amount: 0.65 },
+    },
+    {
+      id: "sunny",
+      name: "แดดสวย",
+      chip: ["#fff0c0", "#ffa86a"],
+      filter: "sunny",
+      smooth: 0.45,
+      glow: 0.5,
+      face: { slim: 0.2, eyes: 0.25, nose: 0.15 },
+      skin: { teeth: 0.3, dark: 0.3, highlight: 0.45, contour: 0.25 },
+      makeup: { lip: "#ee6c5a", blush: "#ffa86a", shadow: "#f0a07c", amount: 0.55 },
+    },
+    {
+      id: "rosy",
+      name: "ชมพูฟุ้ง",
+      chip: ["#ffe4ea", "#e86a86"],
+      filter: "blush",
+      smooth: 0.55,
+      glow: 0.4,
+      face: { slim: 0.3, jaw: 0.2, eyes: 0.35, nose: 0.2 },
+      skin: { teeth: 0.3, dark: 0.4, highlight: 0.3 },
+      makeup: { lip: "#e0567c", blush: "#e86a86", shadow: "#d9948f", amount: 0.65 },
+    },
+  ];
+
+  function applyLook(look) {
+    if (look.none) {
+      settings.face = sanitizeFace(null);
+      settings.makeup = sanitizeMakeup(null);
+      settings.skin = sanitizeSkin(null);
+    } else {
+      settings.face = sanitizeFace(look.face);
+      settings.makeup = sanitizeMakeup({ amount: 0.7, ...look.makeup });
+      settings.skin = sanitizeSkin(look.skin);
+      settings.smooth = look.smooth;
+      settings.glow = look.glow;
+      if (allFilters().some((f) => f.id === look.filter)) selectFilter(look.filter);
+    }
+    saveSettings();
+    syncFacePanel();
+    syncSliders();
+    refreshFace();
+    toast(look.none ? "ปิดลุคแล้ว" : `ลุค: ${look.name}`);
+  }
+
+  function makeSlider(label, min, onInput) {
+    const wrap = document.createElement("label");
+    wrap.className = "slider";
+    const head = document.createElement("span");
+    head.className = "slider-head";
+    head.append(label + " ");
+    const out = document.createElement("output");
+    head.appendChild(out);
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(min);
+    input.max = "100";
+    input.addEventListener("input", () => {
+      out.textContent = input.value;
+      onInput(Number(input.value) / 100);
+    });
+    input.addEventListener("change", saveSettings);
+    wrap.append(head, input);
+    return { wrap, input, out };
+  }
+
   function buildFacePanel() {
-    const shape = $("face-shape");
+    const looks = $("face-looks");
+    LOOKS.forEach((look) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "look-chip";
+      const sw = document.createElement("span");
+      sw.className = "look-swatch";
+      sw.style.background = `linear-gradient(135deg, ${look.chip[0]}, ${look.chip[1]})`;
+      if (look.none) sw.textContent = "∅";
+      const name = document.createElement("span");
+      name.textContent = look.name;
+      btn.append(sw, name);
+      btn.addEventListener("click", () => applyLook(look));
+      looks.appendChild(btn);
+    });
+
     FACE_SLIDERS.forEach(({ key, label, min }) => {
-      const wrap = document.createElement("label");
-      wrap.className = "slider";
-      const head = document.createElement("span");
-      head.className = "slider-head";
-      head.append(label + " ");
-      const out = document.createElement("output");
-      head.appendChild(out);
-      const input = document.createElement("input");
-      input.type = "range";
-      input.min = String(min);
-      input.max = "100";
-      input.addEventListener("input", () => {
-        settings.face[key] = Number(input.value) / 100;
-        out.textContent = input.value;
+      const { wrap, input, out } = makeSlider(label, min, (v) => {
+        settings.face[key] = v;
         refreshFace();
       });
-      input.addEventListener("change", saveSettings);
-      wrap.append(head, input);
-      shape.appendChild(wrap);
+      $("face-shape").appendChild(wrap);
       faceSliderEls[key] = { input, out };
+    });
+
+    const smoothS = makeSlider("ผิวเนียน", 0, (v) => {
+      settings.smooth = v;
+      syncSliders();
+      dirty = true;
+    });
+    const glowS = makeSlider("ผิวใส", 0, (v) => {
+      settings.glow = v;
+      syncSliders();
+      dirty = true;
+    });
+    $("face-skin").append(smoothS.wrap, glowS.wrap);
+    faceSliderEls.smooth = smoothS;
+    faceSliderEls.glow = glowS;
+    SKIN_SLIDERS.forEach(({ key, label }) => {
+      const { wrap, input, out } = makeSlider(label, 0, (v) => {
+        settings.skin[key] = v;
+        refreshFace();
+      });
+      $("face-skin").appendChild(wrap);
+      faceSliderEls["skin_" + key] = { input, out };
     });
 
     const body = $("face-makeup");
@@ -1138,27 +1352,14 @@
       body.appendChild(row);
     });
 
-    const amount = document.createElement("label");
-    amount.className = "slider";
-    const head = document.createElement("span");
-    head.className = "slider-head";
-    head.append("ความเข้มเมคอัพ ");
-    const out = document.createElement("output");
-    head.appendChild(out);
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = "10";
-    input.max = "100";
-    input.addEventListener("input", () => {
-      settings.makeup.amount = Number(input.value) / 100;
-      out.textContent = input.value;
+    const amount = makeSlider("ความเข้มเมคอัพ", 10, (v) => {
+      settings.makeup.amount = v;
       refreshFace();
     });
-    input.addEventListener("change", saveSettings);
-    amount.append(head, input);
-    body.appendChild(amount);
-    faceSliderEls.amount = { input, out };
+    body.appendChild(amount.wrap);
+    faceSliderEls.amount = amount;
 
+    const bodies = { looks, shape: $("face-shape"), skin: $("face-skin"), makeup: body };
     document.querySelectorAll(".face-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
         document.querySelectorAll(".face-tab").forEach((t) => {
@@ -1166,29 +1367,27 @@
           t.classList.toggle("is-on", on);
           t.setAttribute("aria-selected", String(on));
         });
-        shape.hidden = tab.dataset.tab !== "shape";
-        body.hidden = tab.dataset.tab !== "makeup";
+        Object.entries(bodies).forEach(([name, el]) => {
+          el.hidden = name !== tab.dataset.tab;
+        });
       });
     });
 
-    $("btn-face-reset").addEventListener("click", () => {
-      settings.face = sanitizeFace(null);
-      settings.makeup = sanitizeMakeup(null);
-      saveSettings();
-      syncFacePanel();
-      refreshFace();
-    });
+    $("btn-face-reset").addEventListener("click", () => applyLook(LOOKS[0]));
+  }
+
+  function setSlider(el, value) {
+    const v = Math.round(value * 100);
+    el.input.value = String(v);
+    el.out.textContent = String(v);
   }
 
   function syncFacePanel() {
-    FACE_SLIDERS.forEach(({ key }) => {
-      const v = Math.round(settings.face[key] * 100);
-      faceSliderEls[key].input.value = String(v);
-      faceSliderEls[key].out.textContent = String(v);
-    });
-    const a = Math.round(settings.makeup.amount * 100);
-    faceSliderEls.amount.input.value = String(a);
-    faceSliderEls.amount.out.textContent = String(a);
+    FACE_SLIDERS.forEach(({ key }) => setSlider(faceSliderEls[key], settings.face[key]));
+    SKIN_SLIDERS.forEach(({ key }) => setSlider(faceSliderEls["skin_" + key], settings.skin[key]));
+    setSlider(faceSliderEls.smooth, settings.smooth);
+    setSlider(faceSliderEls.glow, settings.glow);
+    setSlider(faceSliderEls.amount, settings.makeup.amount);
     makeupButtons.forEach((btn) => {
       btn.setAttribute("aria-pressed", String(settings.makeup[btn.dataset.row] === btn.dataset.color));
     });

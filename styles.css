@@ -737,18 +737,28 @@ input[type="range"]::-moz-range-thumb {
 
 .face-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   margin-bottom: 8px;
 }
 
 .face-tabs {
   display: flex;
-  gap: 6px;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.face-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .face-tab {
-  padding: 6px 12px;
+  flex: none;
+  padding: 6px 11px;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 700;
@@ -762,14 +772,53 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .face-status {
-  flex: 1;
-  min-width: 0;
+  order: 3;
+  flex-basis: 100%;
   font-size: 0.7rem;
   color: var(--ink-dim);
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.face-status:empty {
+  display: none;
+}
+
+.face-body {
+  max-height: min(30vh, 220px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.face-looks {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
+}
+
+.face-looks::-webkit-scrollbar {
+  display: none;
+}
+
+.look-chip {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+  touch-action: manipulation;
+}
+
+.look-swatch {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: var(--ink-dim);
 }
 
 .face-sliders {

@@ -93,13 +93,17 @@
           <div class="facepanel" id="face-panel" aria-label="ปรับโครงหน้าและเมคอัพ">
             <div class="face-head">
               <div class="face-tabs" role="tablist">
-                <button type="button" class="face-tab is-on" role="tab" data-tab="shape" aria-selected="true">โครงหน้า</button>
+                <button type="button" class="face-tab is-on" role="tab" data-tab="looks" aria-selected="true">ลุคสวย</button>
+                <button type="button" class="face-tab" role="tab" data-tab="shape" aria-selected="false">รูปหน้า</button>
+                <button type="button" class="face-tab" role="tab" data-tab="skin" aria-selected="false">ผิว</button>
                 <button type="button" class="face-tab" role="tab" data-tab="makeup" aria-selected="false">เมคอัพ</button>
               </div>
               <span class="face-status" id="face-status" aria-live="polite"></span>
               <button type="button" class="text-btn" id="btn-face-reset">รีเซ็ต</button>
             </div>
-            <div class="face-body face-sliders" id="face-shape"></div>
+            <div class="face-body face-looks" id="face-looks"></div>
+            <div class="face-body face-sliders" id="face-shape" hidden></div>
+            <div class="face-body face-sliders" id="face-skin" hidden></div>
             <div class="face-body" id="face-makeup" hidden></div>
           </div>
 

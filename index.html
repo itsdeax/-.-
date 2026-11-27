@@ -6,9 +6,9 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#0f1a16" />
+    <meta name="theme-color" content="#140f12" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>ถ่ายขาย — ถ่ายรูป แล้วลงขาย</title>
+    <title>ถ่ายสวย — กล้องฟิลเตอร์ ผิวเนียน ผิวใส</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,129 +19,119 @@
   </head>
   <body>
     <div id="app">
-      <!-- CAMERA SCREEN -->
-      <section id="screen-camera" class="screen screen-camera is-active" aria-label="กล้องถ่ายรูป">
-        <header class="camera-top">
-          <p class="brand">ถ่ายขาย</p>
-          <button type="button" class="ghost-btn" id="btn-open-listings" aria-label="ดูรายการขาย">
-            ของฉัน
-            <span class="badge" id="listing-count">0</span>
-          </button>
-        </header>
-
-        <div class="viewfinder" id="viewfinder">
-          <video id="camera" autoplay playsinline muted></video>
-          <canvas id="capture-canvas" hidden></canvas>
-          <div class="viewfinder-frame" aria-hidden="true"></div>
-          <p class="viewfinder-hint" id="camera-hint">กำลังเปิดกล้อง…</p>
-          <div class="shutter-flash" id="shutter-flash" aria-hidden="true"></div>
-        </div>
-
-        <footer class="camera-dock">
-          <button type="button" class="dock-side" id="btn-pick-file" aria-label="เลือกรูปจากเครื่อง">
-            <span class="dock-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <circle cx="8.5" cy="10" r="1.5" />
-                <path d="M21 16l-5.5-5.5L9 17" />
+      <section id="screen-camera" class="screen is-active" aria-label="กล้องถ่ายรูป">
+        <header class="topbar">
+          <div class="topbar-group">
+            <button type="button" class="icon-btn" id="btn-timer" aria-label="ตั้งเวลาถ่าย">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="12" cy="13" r="7.5" />
+                <path d="M12 9v4l2.5 2" />
+                <path d="M9.5 3h5" />
               </svg>
-            </span>
-            แกลเลอรี
-          </button>
-
-          <button type="button" class="shutter" id="btn-shutter" aria-label="ถ่ายรูป">
-            <span class="shutter-ring"></span>
-            <span class="shutter-core"></span>
-          </button>
-
-          <button type="button" class="dock-side" id="btn-flip" aria-label="สลับกล้อง">
-            <span class="dock-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <span class="icon-btn-label" id="timer-label">ปิด</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-light" aria-label="ไฟเติมหน้าจอ" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" />
+              </svg>
+              <span class="icon-btn-label">ไฟ</span>
+            </button>
+          </div>
+          <p class="brand">ถ่ายสวย</p>
+          <div class="topbar-group topbar-end">
+            <button type="button" class="icon-btn" id="btn-flip" aria-label="สลับกล้องหน้า/หลัง">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 7h4v4" />
-                <path d="M20 7l-3.5 3.5A6.5 6.5 0 0 1 6 14" />
+                <path d="M20 7l-3.5 3.5A6.5 6.5 0 0 0 6 14" />
                 <path d="M8 17H4v-4" />
-                <path d="M4 17l3.5-3.5A6.5 6.5 0 0 1 18 10" />
+                <path d="M4 17l3.5-3.5A6.5 6.5 0 0 0 18 10" />
               </svg>
-            </span>
-            สลับ
-          </button>
-        </footer>
+              <span class="icon-btn-label">สลับ</span>
+            </button>
+          </div>
+        </header>
 
-        <input
-          type="file"
-          id="file-input"
-          accept="image/*"
-          capture="environment"
-          hidden
-        />
+        <div class="stage-wrap">
+          <div class="stage" id="stage">
+            <canvas id="view" aria-label="ภาพตัวอย่างพร้อมฟิลเตอร์"></canvas>
+            <video id="source-video" class="offscreen" autoplay playsinline muted></video>
+            <p class="stage-hint" id="stage-hint">กำลังเปิดกล้อง…</p>
+            <p class="stage-badge" id="compare-badge" hidden>ภาพต้นฉบับ</p>
+            <button type="button" class="stage-pill" id="btn-exit-edit" hidden>กลับไปกล้อง</button>
+            <div class="countdown" id="countdown" hidden aria-live="assertive"></div>
+            <div class="shutter-flash" id="shutter-flash" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="tune" id="tune-panel" aria-label="ปรับความสวย">
+            <label class="slider">
+              <span class="slider-head">ผิวเนียน <output id="out-smooth">45</output></span>
+              <input type="range" id="range-smooth" min="0" max="100" value="45" />
+            </label>
+            <label class="slider">
+              <span class="slider-head">ผิวใส <output id="out-glow">30</output></span>
+              <input type="range" id="range-glow" min="0" max="100" value="30" />
+            </label>
+            <label class="slider">
+              <span class="slider-head">ฟิลเตอร์ <output id="out-intensity">85</output></span>
+              <input type="range" id="range-intensity" min="0" max="100" value="85" />
+            </label>
+            <button type="button" class="text-btn" id="btn-reset">รีเซ็ต</button>
+          </div>
+
+          <div class="filter-strip" id="filter-strip" role="listbox" aria-label="ฟิลเตอร์"></div>
+
+          <div class="dock">
+            <button type="button" class="dock-btn" id="btn-import" aria-label="เลือกรูปจากเครื่องมาแต่ง">
+              <span class="dock-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                  <circle cx="8.5" cy="10" r="1.5" />
+                  <path d="M21 16l-5.5-5.5L9 17" />
+                </svg>
+              </span>
+              แต่งรูป
+            </button>
+
+            <button type="button" class="shutter" id="btn-shutter" aria-label="ถ่ายรูป">
+              <span class="shutter-ring"></span>
+              <span class="shutter-core"></span>
+            </button>
+
+            <button type="button" class="dock-btn" id="btn-tune" aria-label="ปรับผิวและฟิลเตอร์" aria-expanded="false">
+              <span class="dock-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+                  <circle cx="15" cy="7" r="2" />
+                  <circle cx="9" cy="17" r="2" />
+                </svg>
+              </span>
+              ปรับแต่ง
+            </button>
+          </div>
+        </div>
+
+        <input type="file" id="file-input" accept="image/*" hidden />
       </section>
 
-      <!-- REVIEW / LIST SCREEN -->
-      <section id="screen-review" class="screen screen-review" aria-label="พรีวิวและลงขาย" hidden>
-        <header class="panel-header">
+      <section id="screen-result" class="screen" aria-label="ภาพที่ถ่าย" hidden>
+        <header class="topbar topbar-result">
           <button type="button" class="text-btn" id="btn-retake">ถ่ายใหม่</button>
-          <h1>ลงขาย</h1>
-          <span class="header-spacer"></span>
+          <p class="brand">ได้แล้ว</p>
+          <span class="topbar-spacer"></span>
         </header>
-
-        <div class="review-photo-wrap">
-          <img id="review-photo" alt="รูปที่ถ่าย" />
+        <div class="result-wrap">
+          <img id="result-img" alt="ภาพที่ถ่ายพร้อมฟิลเตอร์" />
         </div>
-
-        <form id="sell-form" class="sell-form" autocomplete="off">
-          <label>
-            ชื่อสินค้า
-            <input
-              type="text"
-              id="item-title"
-              name="title"
-              maxlength="80"
-              placeholder="เช่น กล้องฟิล์มมือสอง"
-              required
-            />
-          </label>
-          <label>
-            ราคา (บาท)
-            <input
-              type="number"
-              id="item-price"
-              name="price"
-              min="1"
-              step="1"
-              placeholder="เช่น 450"
-              required
-            />
-          </label>
-          <label>
-            รายละเอียดสั้นๆ
-            <textarea
-              id="item-note"
-              name="note"
-              rows="2"
-              maxlength="160"
-              placeholder="สภาพสินค้า / วิธีติดต่อ"
-            ></textarea>
-          </label>
-          <button type="submit" class="primary-btn" id="btn-list">ลงขายเลย</button>
-        </form>
+        <div class="result-actions">
+          <button type="button" class="primary-btn" id="btn-save">บันทึกรูป</button>
+          <button type="button" class="secondary-btn" id="btn-share" hidden>แชร์</button>
+        </div>
       </section>
 
-      <!-- LISTINGS SCREEN -->
-      <section id="screen-listings" class="screen screen-listings" aria-label="รายการขายของฉัน" hidden>
-        <header class="panel-header">
-          <button type="button" class="text-btn" id="btn-back-camera">กล้อง</button>
-          <h1>ของฉัน</h1>
-          <span class="header-spacer"></span>
-        </header>
-
-        <div id="listings-empty" class="empty-state" hidden>
-          <p class="empty-title">ยังไม่มีสินค้า</p>
-          <p class="empty-copy">ถ่ายรูปชิ้นแรก แล้วลงขายได้เลย</p>
-          <button type="button" class="primary-btn" id="btn-empty-shoot">เปิดกล้อง</button>
-        </div>
-
-        <ul id="listings" class="listings"></ul>
-      </section>
+      <p class="toast" id="toast" role="status" hidden></p>
     </div>
 
     <script src="app.js"></script>

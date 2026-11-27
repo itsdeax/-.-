@@ -122,6 +122,7 @@
   let toastTimer = null;
   let cameraToken = 0;
   let framesDrawn = 0;
+  let lastRenderError = "";
   const lab = { open: false, editingId: null, name: "", chip: ["#e9d9cf", "#b89d8c"], p: normalizeParams({}) };
 
   const renderer = createRenderer(canvas);
@@ -406,13 +407,18 @@
     const isVideo = mode === "camera";
     if (!isVideo && !dirty) return;
 
-    const size = sourceSize();
-    const dims = outputDims(PREVIEW_WIDTH, size);
-    renderer.setSize(dims.w, dims.h);
-    renderer.upload(isVideo ? video : imageSource);
-    renderer.draw(drawParams(size, comparing));
+    try {
+      const size = sourceSize();
+      const dims = outputDims(PREVIEW_WIDTH, size);
+      renderer.setSize(dims.w, dims.h);
+      renderer.upload(isVideo ? video : imageSource);
+      renderer.draw(drawParams(size, comparing));
+      framesDrawn += 1;
+      lastRenderError = "";
+    } catch (err) {
+      lastRenderError = String(err?.message || err).slice(0, 80);
+    }
     dirty = false;
-    framesDrawn += 1;
   }
 
   /* ---------- UI helpers ---------- */
@@ -472,8 +478,14 @@
     filterStrip.querySelectorAll(".filter-chip").forEach((el) => {
       const on = el.dataset.id === id;
       el.setAttribute("aria-selected", String(on));
-      if (on) el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      if (on) centerChip(el);
     });
+  }
+
+  function centerChip(el) {
+    const strip = filterStrip.getBoundingClientRect();
+    const chip = el.getBoundingClientRect();
+    filterStrip.scrollLeft += chip.left - strip.left - (strip.width - chip.width) / 2;
   }
 
   function syncSliders() {
@@ -501,6 +513,16 @@
       stream = null;
     }
     video.srcObject = null;
+  }
+
+  function watchFirstFrames(token) {
+    const before = framesDrawn;
+    setTimeout(() => {
+      if (token !== cameraToken || mode !== "camera" || activeScreen !== "camera") return;
+      if (framesDrawn === before) {
+        setHint("แสดงภาพกล้องพร้อมฟิลเตอร์ไม่ได้บนเบราว์เซอร์นี้ ลองกดแต่งรูป หรืออัปเดตเบราว์เซอร์");
+      }
+    }, 4000);
   }
 
   async function startCamera() {
@@ -536,6 +558,7 @@
       await video.play();
       shutterBtn.disabled = false;
       setHint("");
+      watchFirstFrames(token);
     } catch (err) {
       console.warn(err);
       setHint("ยังเปิดกล้องไม่ได้ อนุญาตสิทธิ์กล้อง หรือกดแต่งรูป");
@@ -777,8 +800,13 @@
     dirty = true;
   };
   stage.addEventListener("pointerdown", startCompare);
+  stage.addEventListener("pointerleave", endCompare);
   window.addEventListener("pointerup", endCompare);
   window.addEventListener("pointercancel", endCompare);
+  window.addEventListener("touchend", endCompare);
+  window.addEventListener("touchcancel", endCompare);
+  window.addEventListener("blur", endCompare);
+  filterStrip.addEventListener("pointerdown", endCompare);
   stage.addEventListener("contextmenu", (e) => e.preventDefault());
 
   $("btn-retake").addEventListener("click", backToCamera);
@@ -1146,7 +1174,9 @@
       lastFrames = framesDrawn;
       const f = findFilter(settings.filter);
       debugEl.textContent =
-        `${gpu} | ${canvas.width}x${canvas.height} | ${f.id} | ฟิลเตอร์ ${Math.round(settings.intensity * 100)}% | ${fps}fps`;
+        `${gpu} | ${canvas.width}x${canvas.height} | ${f.id} | ฟิลเตอร์ ${Math.round(settings.intensity * 100)}% | ${fps}fps` +
+        ` | video ${video.readyState} ${video.videoWidth}x${video.videoHeight} | compare ${comparing}` +
+        (lastRenderError ? ` | error ${lastRenderError}` : "");
     }, 500);
   }
   syncSliders();
@@ -1161,5 +1191,5 @@
   }
 
   const selected = filterStrip.querySelector('[aria-selected="true"]');
-  if (selected) selected.scrollIntoView({ inline: "center", block: "nearest" });
+  if (selected) centerChip(selected);
 })();

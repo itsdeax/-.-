@@ -406,7 +406,8 @@ input[type="range"]::-moz-range-thumb {
   padding: 6px 16px 10px;
   overflow-x: auto;
   scrollbar-width: none;
-  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .filter-strip::-webkit-scrollbar {
@@ -419,7 +420,7 @@ input[type="range"]::-moz-range-thumb {
   justify-items: center;
   gap: 6px;
   width: 58px;
-  scroll-snap-align: center;
+  touch-action: manipulation;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--ink-dim);
@@ -684,8 +685,9 @@ input[type="range"]::-moz-range-thumb {
 .toast {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--safe-bottom) + 130px);
+  top: calc(var(--safe-top) + 74px);
   transform: translateX(-50%);
+  pointer-events: none;
   margin: 0;
   padding: 10px 16px;
   border-radius: 999px;

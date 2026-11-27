@@ -68,7 +68,7 @@
   const allFilters = () => [...builtinFilters, ...customFilters];
 
   const DEFAULT_SETTINGS = {
-    filter: "cream",
+    filter: "clean",
     smooth: 0.45,
     glow: 0.3,
     intensity: 0.85,
@@ -1173,6 +1173,10 @@
   /* ---------- boot ---------- */
 
   const importedName = importFilterFromHash();
+  if (!allFilters().some((f) => f.id === settings.filter)) {
+    settings.filter = DEFAULT_SETTINGS.filter;
+    saveSettings();
+  }
   renderFilterStrip();
   if (importedName) toast(`นำเข้าฟิลเตอร์ "${importedName}" แล้ว`);
   else if (importedName === null) toast("ลิงก์ฟิลเตอร์ไม่ถูกต้อง");

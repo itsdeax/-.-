@@ -77,6 +77,8 @@
     facing: "user",
   };
 
+  const MIN_VISIBLE_INTENSITY = 0.15;
+
   const TIMER_STEPS = [0, 3, 5, 10];
 
   const $ = (id) => document.getElementById(id);
@@ -132,7 +134,13 @@
   function loadSettings() {
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
-      return { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
+      const merged = { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
+      ["smooth", "glow", "intensity"].forEach((key) => {
+        const v = Number(merged[key]);
+        merged[key] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULT_SETTINGS[key];
+      });
+      if (merged.intensity < MIN_VISIBLE_INTENSITY) merged.intensity = DEFAULT_SETTINGS.intensity;
+      return merged;
     } catch {
       return { ...DEFAULT_SETTINGS };
     }
@@ -464,6 +472,11 @@
       btn.append(swatch, name);
       btn.addEventListener("click", () => {
         selectFilter(f.id);
+        if (settings.intensity < MIN_VISIBLE_INTENSITY) {
+          settings.intensity = DEFAULT_SETTINGS.intensity;
+          saveSettings();
+          syncSliders();
+        }
         toast(`ฟิลเตอร์: ${f.name}`);
       });
       filterStrip.appendChild(btn);

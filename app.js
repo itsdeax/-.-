@@ -161,7 +161,6 @@
   const toastEl = $("toast");
   const timerBtn = $("btn-timer");
   const timerLabel = $("timer-label");
-  const lightBtn = $("btn-light");
   const flashBtn = $("btn-flash");
   const flashScreen = $("flash-screen");
 
@@ -983,14 +982,19 @@
     });
   }
 
+  function flashState() {
+    if (settings.fill && settings.facing === "user") return "light";
+    return settings.flash ? "flash" : "off";
+  }
+
   function syncToolbar() {
     timerLabel.textContent = settings.timer ? `${settings.timer} วิ` : "ปิด";
     timerBtn.classList.toggle("is-on", settings.timer > 0);
-    flashBtn.setAttribute("aria-pressed", String(settings.flash));
+    const state = flashState();
+    flashBtn.dataset.state = state;
+    flashBtn.setAttribute("aria-pressed", String(state !== "off"));
     flashBtn.hidden = mode !== "camera";
-    lightBtn.setAttribute("aria-pressed", String(settings.fill));
-    lightBtn.hidden = settings.facing !== "user" || mode !== "camera";
-    screenCamera.classList.toggle("screen-fill", settings.fill && !lightBtn.hidden);
+    screenCamera.classList.toggle("screen-fill", state === "light" && mode === "camera");
   }
 
   /* ---------- camera ---------- */
@@ -1434,20 +1438,18 @@
   });
 
   flashBtn.addEventListener("click", () => {
-    settings.flash = !settings.flash;
+    const front = settings.facing === "user";
+    const state = flashState();
+    const next = state === "off" ? "flash" : state === "flash" && front ? "light" : "off";
+    settings.flash = next === "flash";
+    settings.fill = next === "light";
     saveSettings();
     syncToolbar();
-    if (settings.flash && settings.facing !== "user" && !torchSupported) {
+    if (next === "flash" && !front && !torchSupported) {
       toast("เครื่องนี้เปิดไฟแฟลชจริงไม่ได้ ใช้แฟลชจำลองแทน");
     } else {
-      toast(settings.flash ? "แฟลช: เปิด" : "แฟลช: ปิด");
+      toast(next === "flash" ? "แฟลช: เปิด" : next === "light" ? "ไฟเติมแสง: เปิด" : "แฟลช: ปิด");
     }
-  });
-
-  lightBtn.addEventListener("click", () => {
-    settings.fill = !settings.fill;
-    saveSettings();
-    syncToolbar();
   });
 
   tuneBtn.addEventListener("click", () => setPanelOpen("tune"));
@@ -1486,6 +1488,7 @@
     facePanel.classList.toggle("is-open", faceOpen);
     faceBtn.setAttribute("aria-expanded", String(faceOpen));
     controlsEl.classList.toggle("face-open", faceOpen);
+    screenCamera.classList.toggle("panel-open", tuneOpen || faceOpen);
     if (faceOpen) {
       syncFacePanel();
       FaceKit?.load().catch(() => {});
@@ -1883,6 +1886,7 @@
     facePanel.classList.remove("is-open");
     faceBtn.setAttribute("aria-expanded", "false");
     controlsEl.classList.remove("face-open");
+    screenCamera.classList.remove("panel-open");
     lab.open = true;
     labEls.panel.hidden = false;
     syncOverlay();

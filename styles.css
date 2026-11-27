@@ -97,7 +97,7 @@ button {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: calc(var(--safe-top) + 10px) 14px 8px;
+  padding: calc(var(--safe-top) + 8px) 14px 6px;
 }
 
 .topbar-group {
@@ -116,7 +116,7 @@ button {
 .brand {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.45rem;
+  font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   background: linear-gradient(120deg, var(--peach), var(--blush));
@@ -126,27 +126,62 @@ button {
 }
 
 .icon-btn {
+  position: relative;
   display: grid;
-  justify-items: center;
-  gap: 2px;
-  min-width: 44px;
-  padding: 6px 8px;
-  border-radius: 14px;
-  background: var(--glass);
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--ink-dim);
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 243, 236, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--ink);
+  transition: background 160ms ease, transform 120ms ease;
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
 }
 
 .icon-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 21px;
+  height: 21px;
 }
 
-.icon-btn[aria-pressed="true"],
-.icon-btn.is-on {
+.icon-btn-label {
+  display: none;
+}
+
+#btn-timer.is-on .icon-btn-label {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--blush);
+  color: #3a1822;
+  font-size: 0.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+#btn-timer.is-on,
+#btn-flash:not([data-state="off"]) {
   background: linear-gradient(135deg, var(--peach), var(--blush));
   color: #3a1822;
+}
+
+#btn-flash .ico-flash,
+#btn-flash .ico-light,
+#btn-flash .ico-off {
+  display: none;
+}
+
+#btn-flash[data-state="off"] .ico-off,
+#btn-flash[data-state="flash"] .ico-flash,
+#btn-flash[data-state="light"] .ico-light {
+  display: block;
 }
 
 /* Stage */
@@ -155,7 +190,7 @@ button {
   min-height: 0;
   display: grid;
   place-items: center;
-  padding: 4px 12px;
+  padding: 2px 10px 8px;
 }
 
 .stage {
@@ -311,29 +346,49 @@ button {
   --ink: #3a1822;
   --ink-dim: rgba(58, 24, 34, 0.7);
   --glass: rgba(58, 24, 34, 0.1);
+  --glass-strong: rgba(58, 24, 34, 0.14);
   color: #3a1822;
 }
 
 /* Controls */
 .controls {
-  padding: 4px 0 calc(var(--safe-bottom) + 14px);
+  position: relative;
+  padding: 0 0 calc(var(--safe-bottom) + 12px);
 }
 
 .tune {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 100%;
+  z-index: 4;
   display: none;
   grid-template-columns: 1fr 1fr 1fr auto;
   align-items: end;
   gap: 12px;
-  margin: 0 14px 8px;
-  padding: 10px 12px;
-  border-radius: 18px;
-  background: var(--glass);
-  backdrop-filter: blur(10px);
+  padding: 12px 14px;
+  border-radius: 22px;
+  background: rgba(22, 16, 19, 0.82);
+  border: 1px solid rgba(255, 243, 236, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
 }
 
 .tune.is-open {
   display: grid;
-  animation: screen-in 240ms ease;
+  animation: sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .slider {
@@ -448,7 +503,7 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 4px 24px 0;
+  padding: 2px 28px 0;
 }
 
 .dock-btn {
@@ -471,12 +526,12 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .dock-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 15px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--glass);
+  background: var(--glass-strong);
 }
 
 .dock-icon svg {
@@ -718,20 +773,27 @@ input[type="range"]::-moz-range-thumb {
 
 /* Face reshape + makeup panel */
 .facepanel {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 100%;
+  z-index: 4;
   display: none;
-  margin: 0 14px 8px;
-  padding: 10px 12px 12px;
-  border-radius: 18px;
-  background: var(--glass);
-  backdrop-filter: blur(10px);
+  padding: 10px 14px 14px;
+  border-radius: 22px;
+  background: rgba(22, 16, 19, 0.82);
+  border: 1px solid rgba(255, 243, 236, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
 }
 
 .facepanel.is-open {
   display: block;
-  animation: screen-in 240ms ease;
+  animation: sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.controls.face-open .filter-strip {
+.screen.panel-open .lens {
   display: none;
 }
 
@@ -959,10 +1021,18 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+.looks-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 18px;
+}
+
 .strip-tabs {
   display: flex;
-  gap: 6px;
-  padding: 0 14px 6px;
+  flex: 1;
+  min-width: 0;
+  gap: 20px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -971,24 +1041,42 @@ input[type="range"]::-moz-range-thumb {
   display: none;
 }
 
-.controls.face-open .strip-tabs {
-  display: none;
-}
-
 .strip-tab {
   flex: none;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
+  padding: 8px 0 7px;
+  border-bottom: 2px solid transparent;
+  font-size: 0.86rem;
+  font-weight: 600;
   color: var(--ink-dim);
-  background: var(--glass);
+  transition: color 160ms ease, border-color 160ms ease;
 }
 
 .strip-tab.is-on {
-  color: #3a1822;
-  background: linear-gradient(135deg, var(--peach), var(--blush));
+  color: var(--ink);
+  border-bottom-color: var(--blush);
 }
+
+.tune-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--glass-strong);
+  color: var(--ink);
+}
+
+.tune-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.tune-btn[aria-expanded="true"] {
+  background: linear-gradient(135deg, var(--peach), var(--blush));
+  color: #3a1822;
+}
+
 
 .filter-chip.is-camera .filter-swatch {
   display: grid;

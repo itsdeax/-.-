@@ -31,12 +31,18 @@
               </svg>
               <span class="icon-btn-label" id="timer-label">ปิด</span>
             </button>
-            <button type="button" class="icon-btn" id="btn-light" aria-label="ไฟเติมหน้าจอ" aria-pressed="false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <button type="button" class="icon-btn" id="btn-flash" aria-label="แฟลชและไฟเติมแสง" data-state="off">
+              <svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2.5L5.5 13.5H11L10 21.5L18.5 10H12.5z" />
+                <path d="M4 4l16 16" />
+              </svg>
+              <svg class="ico-flash" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2.5L5.5 13.5H11L10 21.5L18.5 10H12.5z" />
+              </svg>
+              <svg class="ico-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                 <circle cx="12" cy="12" r="4" />
                 <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" />
               </svg>
-              <span class="icon-btn-label">ไฟ</span>
             </button>
           </div>
           <p class="brand">ถ่ายสวย</p>
@@ -47,13 +53,6 @@
                 <path d="M10 3v6.2L5.2 18a2 2 0 0 0 1.7 3h10.2a2 2 0 0 0 1.7-3L14 9.2V3" />
                 <path d="M7.5 15h9" />
               </svg>
-              <span class="icon-btn-label">Lab</span>
-            </button>
-            <button type="button" class="icon-btn" id="btn-flash" aria-label="แฟลช" aria-pressed="false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2.5L5.5 13.5H11L10 21.5L18.5 10H12.5z" />
-              </svg>
-              <span class="icon-btn-label">แฟลช</span>
             </button>
             <button type="button" class="icon-btn" id="btn-flip" aria-label="สลับกล้องหน้า/หลัง">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -62,7 +61,6 @@
                 <path d="M8 17H4v-4" />
                 <path d="M4 17l3.5-3.5A6.5 6.5 0 0 0 18 10" />
               </svg>
-              <span class="icon-btn-label">สลับ</span>
             </button>
           </div>
         </header>
@@ -128,11 +126,20 @@
             <div class="face-body" id="face-makeup" hidden></div>
           </div>
 
-          <div class="strip-tabs" role="tablist">
-            <button type="button" class="strip-tab is-on" role="tab" data-kind="filter" aria-selected="true">ฟิลเตอร์</button>
-            <button type="button" class="strip-tab" role="tab" data-kind="portrait" aria-selected="false">พอร์ตเทรต</button>
-            <button type="button" class="strip-tab" role="tab" data-kind="compact" aria-selected="false">คอมแพค</button>
-            <button type="button" class="strip-tab" role="tab" data-kind="camera" aria-selected="false">กล้องฟิล์ม</button>
+          <div class="looks-bar">
+            <div class="strip-tabs" role="tablist">
+              <button type="button" class="strip-tab is-on" role="tab" data-kind="filter" aria-selected="true">ฟิลเตอร์</button>
+              <button type="button" class="strip-tab" role="tab" data-kind="portrait" aria-selected="false">พอร์ตเทรต</button>
+              <button type="button" class="strip-tab" role="tab" data-kind="compact" aria-selected="false">คอมแพค</button>
+              <button type="button" class="strip-tab" role="tab" data-kind="camera" aria-selected="false">กล้องฟิล์ม</button>
+            </div>
+            <button type="button" class="tune-btn" id="btn-tune" aria-label="ปรับผิวและความแรงฟิลเตอร์" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+                <circle cx="15" cy="7" r="2" />
+                <circle cx="9" cy="17" r="2" />
+              </svg>
+            </button>
           </div>
 
           <div class="filter-strip" id="filter-strip" role="listbox" aria-label="ฟิลเตอร์"></div>
@@ -166,16 +173,6 @@
                 แต่งหน้า
               </button>
 
-              <button type="button" class="dock-btn" id="btn-tune" aria-label="ปรับผิวและฟิลเตอร์" aria-expanded="false">
-                <span class="dock-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                    <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
-                    <circle cx="15" cy="7" r="2" />
-                    <circle cx="9" cy="17" r="2" />
-                  </svg>
-                </span>
-                ปรับแต่ง
-              </button>
             </div>
           </div>
         </div>

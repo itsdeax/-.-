@@ -464,8 +464,10 @@ input[type="range"]::-moz-range-thumb {
   justify-self: start;
 }
 
-.dock-btn:last-child {
+.dock-right {
   justify-self: end;
+  display: flex;
+  gap: 14px;
 }
 
 .dock-icon {
@@ -711,5 +713,119 @@ input[type="range"]::-moz-range-thumb {
     margin-top: 16px;
     border-radius: 30px;
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Face reshape + makeup panel */
+.facepanel {
+  display: none;
+  margin: 0 14px 8px;
+  padding: 10px 12px 12px;
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+}
+
+.facepanel.is-open {
+  display: block;
+  animation: screen-in 240ms ease;
+}
+
+.controls.face-open .filter-strip {
+  display: none;
+}
+
+.face-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.face-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.face-tab {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-dim);
+  background: var(--glass);
+}
+
+.face-tab.is-on {
+  color: #3a1822;
+  background: linear-gradient(135deg, var(--peach), var(--blush));
+}
+
+.face-status {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.face-sliders {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.makeup-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+.makeup-swatches {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 3px 2px;
+  scrollbar-width: none;
+}
+
+.makeup-swatches::-webkit-scrollbar {
+  display: none;
+}
+
+.makeup-swatch {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  touch-action: manipulation;
+}
+
+.makeup-swatch[aria-pressed="true"] {
+  border-color: var(--blush);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px rgba(255, 158, 181, 0.35);
+}
+
+.makeup-swatch.is-none {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+}
+
+@media (max-height: 700px) {
+  .face-sliders {
+    gap: 4px 16px;
   }
 }

@@ -994,3 +994,35 @@ input[type="range"]::-moz-range-thumb {
   width: 22px;
   height: 22px;
 }
+
+/* Lens (zoom) selector */
+.lens {
+  position: absolute;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(14, 10, 12, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 3;
+}
+
+.lens-btn {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+.lens-btn.is-on {
+  color: #2b1119;
+  background: linear-gradient(135deg, #ffe08a, #ffb84d);
+}

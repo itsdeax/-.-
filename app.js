@@ -133,6 +133,8 @@
   const vfEl = $("viewfinder");
   const vfLabel = $("vf-label");
   const stripTabs = document.querySelectorAll(".strip-tab");
+  const lensEl = $("lens");
+  const lensBtns = lensEl.querySelectorAll(".lens-btn");
   const badge = $("compare-badge");
   const exitEditBtn = $("btn-exit-edit");
   const countdownEl = $("countdown");
@@ -162,6 +164,9 @@
   let imageSource = null;
   let comparing = false;
   let stripKind = "filter";
+  const ZOOM_MAX = 6;
+  let zoom = 1;
+  let zoomTarget = 1;
   let counting = null;
   let dirty = true;
   let activeScreen = "camera";
@@ -753,9 +758,9 @@
   function cropGeometry(size) {
     const sa = size.w / size.h;
     if (sa > OUT_ASPECT) {
-      return { crop: [OUT_ASPECT / sa, 1], regionW: size.h * OUT_ASPECT };
+      return { crop: [OUT_ASPECT / sa / zoom, 1 / zoom], regionW: (size.h * OUT_ASPECT) / zoom };
     }
-    return { crop: [1, sa / OUT_ASPECT], regionW: size.w };
+    return { crop: [1 / zoom, sa / OUT_ASPECT / zoom], regionW: size.w / zoom };
   }
 
   function outputDims(targetWidth, size) {
@@ -808,6 +813,12 @@
     if (!renderer || activeScreen !== "camera" || !sourceReady()) return;
 
     const isVideo = mode === "camera";
+    if (Math.abs(zoomTarget - zoom) > 0.002) {
+      zoom += (zoomTarget - zoom) * 0.28;
+      if (Math.abs(zoomTarget - zoom) <= 0.002) zoom = zoomTarget;
+      dirty = true;
+      syncLens();
+    }
     if (!isVideo && !dirty) return;
 
     try {
@@ -966,6 +977,7 @@
     const token = cameraToken;
     mode = "camera";
     imageSource = null;
+    setZoom(1, true);
     resetFaceTracking();
     exitEditBtn.hidden = true;
     shutterBtn.disabled = true;
@@ -1000,6 +1012,34 @@
       console.warn(err);
       setHint("ยังเปิดกล้องไม่ได้ อนุญาตสิทธิ์กล้อง หรือกดแต่งรูป");
     }
+  }
+
+  /* ---------- lens (zoom) ---------- */
+
+  const LENS_PRESETS = [1, 2, 3, 5];
+
+  function formatZoom(z) {
+    return `${Number.isInteger(Math.round(z * 10) / 10) ? Math.round(z) : (Math.round(z * 10) / 10).toFixed(1)}×`;
+  }
+
+  function syncLens() {
+    let best = 0;
+    LENS_PRESETS.forEach((p, i) => {
+      if (Math.abs(Math.log(zoom / p)) < Math.abs(Math.log(zoom / LENS_PRESETS[best]))) best = i;
+    });
+    lensBtns.forEach((btn, i) => {
+      const on = i === best;
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", String(on));
+      btn.textContent = on && Math.abs(zoom - LENS_PRESETS[i]) > 0.05 ? formatZoom(zoom) : formatZoom(LENS_PRESETS[i]);
+    });
+  }
+
+  function setZoom(value, snap = false) {
+    zoomTarget = clamp(value, 1, ZOOM_MAX);
+    if (snap) zoom = zoomTarget;
+    dirty = true;
+    syncLens();
   }
 
   /* ---------- overlay: date stamp and frame ---------- */
@@ -1107,6 +1147,7 @@
   /* ---------- capture ---------- */
 
   function renderToBlob() {
+    zoom = zoomTarget;
     const size = sourceSize();
     const dims = outputDims(CAPTURE_WIDTH, size);
     const previewDims = outputDims(PREVIEW_WIDTH, size);
@@ -1275,6 +1316,7 @@
     cancelCountdown();
     stopCamera();
     mode = "image";
+    setZoom(1, true);
     dirty = true;
     face.tracker?.reset();
     face.imageToken += 1;
@@ -1615,6 +1657,51 @@
   window.addEventListener("blur", endCompare);
   filterStrip.addEventListener("pointerdown", endCompare);
   stage.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  lensBtns.forEach((btn, i) => {
+    btn.addEventListener("click", () => setZoom(LENS_PRESETS[i]));
+  });
+  lensEl.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    endCompare();
+  });
+
+  const touches = new Map();
+  let pinchStart = null;
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".lens")) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) {
+      endCompare();
+      const [a, b] = [...touches.values()];
+      pinchStart = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: zoomTarget };
+    }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2 && pinchStart && pinchStart.dist > 10) {
+      const [a, b] = [...touches.values()];
+      const ratio = Math.hypot(a.x - b.x, a.y - b.y) / pinchStart.dist;
+      setZoom(pinchStart.zoom * ratio, true);
+    }
+  });
+  const dropTouch = (e) => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) pinchStart = null;
+  };
+  stage.addEventListener("pointerup", dropTouch);
+  stage.addEventListener("pointercancel", dropTouch);
+  ["gesturestart", "gesturechange"].forEach((type) => stage.addEventListener(type, (e) => e.preventDefault()));
+  stage.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      setZoom(zoomTarget * Math.exp(-e.deltaY * 0.0015));
+    },
+    { passive: false }
+  );
+  syncLens();
 
   $("btn-retake").addEventListener("click", backToCamera);
   saveBtn.addEventListener("click", savePhoto);

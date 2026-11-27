@@ -39,12 +39,22 @@
       chip: [HEX.test(chip[0]) ? chip[0] : "#e9d9cf", HEX.test(chip[1]) ? chip[1] : "#b89d8c"],
       p: normalizeParams(f?.p),
       custom,
-      kind: f?.model ? "camera" : "filter",
+      kind: f?.model ? "camera" : f?.port ? "portrait" : f?.compact ? "compact" : "filter",
       model: String(f?.model ?? "").slice(0, 16),
       fx: {
         bloom: clamp(Number(f?.fx?.bloom) || 0, 0, 1),
         leak: clamp(Number(f?.fx?.leak) || 0, 0, 1),
         aber: clamp(Number(f?.fx?.aber) || 0, 0, 1),
+      },
+      port: {
+        glow: clamp(Number(f?.port?.glow) || 0, 0, 1),
+        warm: clamp(Number(f?.port?.warm) || 0, 0, 1),
+        mute: clamp(Number(f?.port?.mute) || 0, 0, 1),
+        cool: clamp(Number(f?.port?.cool) || 0, 0, 1),
+      },
+      split: {
+        sh: [0, 1, 2].map((i) => clamp(Number(f?.split?.sh?.[i]) || 0, -0.15, 0.15)),
+        hi: [0, 1, 2].map((i) => clamp(Number(f?.split?.hi?.[i]) || 0, -0.15, 0.15)),
       },
       stamp: Boolean(f?.stamp),
       frame: f?.frame === "polaroid" ? "polaroid" : "",
@@ -69,7 +79,7 @@
     }
   }
 
-  const builtinFilters = [...(window.THAISUAY_FILTERS || []), ...(window.THAISUAY_CAMERAS || [])].map((f) =>
+  const builtinFilters = [...(window.THAISUAY_FILTERS || []), ...(window.THAISUAY_PORTRAIT || []), ...(window.THAISUAY_COMPACT || []), ...(window.THAISUAY_CAMERAS || [])].map((f) =>
     normalizeFilter(f, false)
   );
   if (!builtinFilters.length) {
@@ -424,6 +434,9 @@
       uniform sampler2D u_fx;
       uniform float u_fxOn;
       uniform vec3 u_look;
+      uniform vec4 u_port;
+      uniform vec3 u_shT;
+      uniform vec3 u_hiT;
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -574,6 +587,18 @@
         float chroma = max(max(g.r, g.g), g.b) - min(min(g.r, g.g), g.b);
         g = mix(vec3(luma(g)), g, 1.0 + 0.18 * (1.0 - chroma) * (1.0 - u_mono));
 
+        float lt = luma(g);
+        g += (1.0 - smoothstep(0.0, 0.55, lt)) * u_shT + smoothstep(0.45, 1.0, lt) * u_hiT;
+
+        if (u_port.x + u_port.y + u_port.z + u_port.w > 0.001) {
+          float hl = smoothstep(0.5, 0.92, luma(g));
+          g += mask * u_port.x * (0.04 + 0.16 * hl) * vec3(1.0, 0.95, 0.9);
+          g += mask * u_port.y * vec3(0.05, -0.004, 0.012);
+          float bgW = 1.0 - mask;
+          g = mix(g, vec3(luma(g)), bgW * u_port.z);
+          g += bgW * u_port.w * vec3(-0.03, 0.0, 0.05);
+        }
+
         g = u_fade + g * (1.0 - u_fade);
 
         vec2 q = (v_uv - 0.5) * vec2(1.0, 1.15);
@@ -649,7 +674,7 @@
       "u_intensity", "u_exposure", "u_contrast", "u_sat", "u_temp", "u_tint",
       "u_fade", "u_vig", "u_grain", "u_mono", "u_seed",
       "u_face", "u_fc", "u_fax", "u_fy", "u_eyeA", "u_eyeB", "u_nose", "u_rs", "u_eyes",
-      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look",
+      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look", "u_port", "u_shT", "u_hiT",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
@@ -728,6 +753,9 @@
         gl.uniform1f(uniforms.u_maskOn, p.maskOn ? 1 : 0);
         gl.uniform1f(uniforms.u_fxOn, p.fxOn ? 1 : 0);
         gl.uniform3f(uniforms.u_look, p.look.bloom, p.look.leak, p.look.aber);
+        gl.uniform3fv(uniforms.u_shT, p.split.sh);
+        gl.uniform3fv(uniforms.u_hiT, p.split.hi);
+        gl.uniform4f(uniforms.u_port, p.port.glow, p.port.warm, p.port.mute, p.port.cool);
         if (fc) {
           gl.uniform2f(uniforms.u_fc, fc.center[0], fc.center[1]);
           gl.uniform2f(uniforms.u_fax, fc.axis[0], fc.axis[1]);
@@ -797,6 +825,8 @@
       fxOn: !original && face.hasFx && Boolean(face.geo),
       reshape: settings.face,
       look: original || lab.open ? { bloom: 0, leak: 0, aber: 0 } : findFilter(settings.filter).fx,
+      split: original || lab.open ? { sh: [0, 0, 0], hi: [0, 0, 0] } : findFilter(settings.filter).split,
+      port: original || lab.open ? { glow: 0, warm: 0, mute: 0, cool: 0 } : findFilter(settings.filter).port,
       seed: (performance.now() % 1000) / 1000,
     };
   }

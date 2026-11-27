@@ -87,6 +87,114 @@ window.THAISUAY_FILTERS = [
 ];
 
 /*
+ * Portrait looks. Same parameters as filters, plus `port` (each 0..1) which
+ * treats the skin and the background separately:
+ *   glow  dewy highlights on skin     warm  rosy skin tone
+ *   mute  desaturate the background   cool  cool the background
+ */
+window.THAISUAY_PORTRAIT = [
+  {
+    id: "pt-dewy",
+    name: "ผิวฉ่ำ",
+    chip: ["#ffe6dc", "#f3a99a"],
+    p: { exposure: 0.08, contrast: 1.08, sat: 1.05, temp: 0.06 },
+    port: { glow: 0.8, warm: 0.3, mute: 0.15 },
+  },
+  {
+    id: "pt-peach",
+    name: "ครีมพีช",
+    chip: ["#ffe9d6", "#f6b48f"],
+    p: { exposure: 0.06, contrast: 1.06, temp: 0.14, tint: 0.15 },
+    port: { glow: 0.5, warm: 0.6, mute: 0.3 },
+  },
+  {
+    id: "pt-tea",
+    name: "ชานม",
+    chip: ["#eddcc8", "#b88f6c"],
+    p: { exposure: 0.04, contrast: 1.05, sat: 0.9, temp: 0.2, tint: 0.05 },
+    port: { glow: 0.35, warm: 0.4, mute: 0.45 },
+  },
+  {
+    id: "pt-korean",
+    name: "เกาหลีใส",
+    chip: ["#f4f7ff", "#d8c4ee"],
+    p: { exposure: 0.12, contrast: 1.04, sat: 0.95, temp: -0.06, tint: 0.12 },
+    port: { glow: 0.6, warm: 0.2, mute: 0.25, cool: 0.5 },
+  },
+  {
+    id: "pt-glow",
+    name: "ซอฟต์โกลว์",
+    chip: ["#fff1f4", "#f8bfd0"],
+    p: { exposure: 0.1, contrast: 1.02, sat: 1.05, tint: 0.2 },
+    port: { glow: 1, warm: 0.3, mute: 0.1, cool: 0.2 },
+    fx: { bloom: 0.25 },
+  },
+  {
+    id: "pt-sun",
+    name: "ซันคิส",
+    chip: ["#ffd9a0", "#d98a4a"],
+    p: { contrast: 1.15, sat: 1.1, temp: 0.18 },
+    port: { glow: 0.5, warm: 0.5, mute: 0.2, cool: 0.3 },
+  },
+];
+
+/*
+ * Compact-camera looks (G7X style): slightly underexposed, strong contrast,
+ * muted colour. Adds `compact: true` and `split` (small -0.15..0.15 RGB shifts)
+ * to tint the shadows (`sh`) and highlights (`hi`) separately.
+ */
+window.THAISUAY_COMPACT = [
+  {
+    id: "cp-g7x",
+    name: "G7X",
+    compact: true,
+    chip: ["#8d9498", "#2d3438"],
+    p: { exposure: -0.12, contrast: 1.18, sat: 0.68, temp: -0.04, tint: -0.03, vig: 0.25, grain: 0.05 },
+    split: { sh: [-0.01, 0.015, 0.02], hi: [0.02, 0.01, -0.01] },
+  },
+  {
+    id: "cp-g12",
+    name: "Canon G12",
+    compact: true,
+    chip: ["#b09a80", "#3b322a"],
+    p: { exposure: -0.08, contrast: 1.16, sat: 0.76, temp: 0.1, vig: 0.22, grain: 0.05 },
+    split: { sh: [0.01, 0.01, 0], hi: [0.03, 0.015, -0.015] },
+  },
+  {
+    id: "cp-eos",
+    name: "EOS R",
+    compact: true,
+    chip: ["#7f93b3", "#1d2740"],
+    p: { exposure: -0.1, contrast: 1.25, sat: 0.82, temp: -0.12, tint: 0.02, vig: 0.3, grain: 0.04 },
+    split: { sh: [-0.015, 0.005, 0.035], hi: [0.01, 0, -0.005] },
+  },
+  {
+    id: "cp-ip7",
+    name: "iP 7",
+    compact: true,
+    chip: ["#c3bfb8", "#4a4a48"],
+    p: { exposure: -0.04, contrast: 1.12, sat: 0.9, temp: 0.02, vig: 0.15, grain: 0.06 },
+    split: { sh: [0, 0.01, 0.015], hi: [0.015, 0.008, 0] },
+  },
+  {
+    id: "cp-x5",
+    name: "X5",
+    compact: true,
+    chip: ["#7fa095", "#1f3a33"],
+    p: { exposure: -0.1, contrast: 1.18, sat: 0.7, temp: -0.06, tint: -0.1, vig: 0.25, grain: 0.06 },
+    split: { sh: [-0.02, 0.025, 0.02], hi: [0.02, 0.015, -0.01] },
+  },
+  {
+    id: "cp-gr",
+    name: "GR",
+    compact: true,
+    chip: ["#a8a8a4", "#1c1c1c"],
+    p: { exposure: -0.06, contrast: 1.35, sat: 0.6, vig: 0.35, grain: 0.1 },
+    split: { sh: [-0.01, 0, 0.015], hi: [0.02, 0.015, 0] },
+  },
+];
+
+/*
  * Camera looks (Dazz-style). Same parameters as the filters above, plus:
  *   model  small label shown in the viewfinder
  *   fx     { bloom, leak, aber } each 0..1: highlight glow, light leak, colour fringing

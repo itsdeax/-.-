@@ -963,6 +963,12 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   gap: 6px;
   padding: 0 14px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.strip-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .controls.face-open .strip-tabs {
@@ -970,6 +976,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .strip-tab {
+  flex: none;
   padding: 5px 12px;
   border-radius: 999px;
   font-size: 0.74rem;

@@ -40,6 +40,14 @@
           </div>
           <p class="brand">ถ่ายสวย</p>
           <div class="topbar-group topbar-end">
+            <button type="button" class="icon-btn" id="btn-lab" aria-label="สร้างฟิลเตอร์ (โหมดนักพัฒนา)" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 3h6" />
+                <path d="M10 3v6.2L5.2 18a2 2 0 0 0 1.7 3h10.2a2 2 0 0 0 1.7-3L14 9.2V3" />
+                <path d="M7.5 15h9" />
+              </svg>
+              <span class="icon-btn-label">Lab</span>
+            </button>
             <button type="button" class="icon-btn" id="btn-flip" aria-label="สลับกล้องหน้า/หลัง">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 7h4v4" />
@@ -113,6 +121,24 @@
           </div>
         </div>
 
+        <div class="lab" id="lab-panel" role="dialog" aria-label="สร้างฟิลเตอร์" hidden>
+          <div class="lab-head">
+            <strong>สร้างฟิลเตอร์</strong>
+            <button type="button" class="text-btn" id="btn-lab-close">ปิด</button>
+          </div>
+          <div class="lab-meta">
+            <input type="text" id="lab-name" maxlength="20" placeholder="ชื่อฟิลเตอร์" aria-label="ชื่อฟิลเตอร์" />
+            <input type="color" id="lab-c1" value="#e9d9cf" aria-label="สีชิปต้น" />
+            <input type="color" id="lab-c2" value="#b89d8c" aria-label="สีชิปปลาย" />
+          </div>
+          <div class="lab-sliders" id="lab-sliders"></div>
+          <div class="lab-actions">
+            <button type="button" class="lab-btn lab-btn-primary" id="btn-lab-save">บันทึกในเครื่อง</button>
+            <button type="button" class="lab-btn" id="btn-lab-copy">คัดลอกโค้ด</button>
+            <button type="button" class="lab-btn lab-btn-danger" id="btn-lab-delete" hidden>ลบ</button>
+          </div>
+        </div>
+
         <input type="file" id="file-input" accept="image/*" hidden />
       </section>
 
@@ -134,6 +160,7 @@
       <p class="toast" id="toast" role="status" hidden></p>
     </div>
 
+    <script src="filters.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

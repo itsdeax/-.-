@@ -1,136 +1,149 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
   <head>
-    <base target="_top">
-    <title>ฟอร์มรับคิวโรงพยาบาล</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background-color: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
-      }
-      .form-container {
-        background-color: white;
-        padding: 40px;
-        border-radius: 8px;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-        width: 100%;
-        max-width: 600px;
-      }
-      h1 {
-        text-align: center;
-        color: #333;
-      }
-      label {
-        font-weight: bold;
-        display: block;
-        margin-top: 20px;
-        color: #555;
-      }
-      input[type="text"], input[type="tel"], select {
-        width: calc(100% - 20px);
-        padding: 10px;
-        margin-top: 5px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 16px;
-      }
-      input[type="submit"] {
-        width: 100%;
-        padding: 12px;
-        margin-top: 20px;
-        background-color: #4CAF50;
-        border: none;
-        color: white;
-        font-weight: bold;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-      }
-      input[type="submit"]:hover {
-        background-color: #45a049;
-      }
-      #result {
-        margin-top: 20px;
-        text-align: center;
-        font-size: 1.2em;
-        color: green;
-      }
-    </style>
-    <script>
-      function submitForm() {
-        var phone = document.getElementById('phone').value;
-        
-        if (!/^\d{10}$/.test(phone)) {
-          alert('กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก');
-          return;
-        }
-
-        var data = {
-          prefix: document.getElementById('prefix').value,
-          name: document.getElementById('name').value,
-          surname: document.getElementById('surname').value,
-          phone: phone,
-          userId: 'ใส่ User ID ที่ได้รับมาจาก LINE ที่นี่'
-        };
-
-        google.script.run
-          .withSuccessHandler(function(response) {
-            document.getElementById('result').innerText = response;
-          })
-          .submitData(data);
-      }
-
-      // Function to get User ID from LINE Messaging API
-      function getUserId() {
-        // Replace with your Channel Access Token
-        var accessToken = 'ใส่ Channel Access Token ของคุณที่นี่';
-
-        // Replace with your User ID endpoint URL
-        var url = 'https://api.line.me/v2/profile';
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.setRequestHeader('Authorization', 'Bearer ' + accessToken);
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState === 4 && xhr.status === 200) {
-            var profile = JSON.parse(xhr.responseText);
-            document.getElementById('userId').value = profile.userId;
-          }
-        };
-        xhr.send();
-      }
-
-      // Call getUserId() function when the page loads
-      window.onload = function() {
-        getUserId();
-      };
-    </script>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0f1a16" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>ถ่ายขาย — ถ่ายรูป แล้วลงขาย</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=Kanit:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="form-container">
-      <h1>ฟอร์มรับคิวโรงพยาบาล</h1>
-      <form onsubmit="event.preventDefault(); submitForm();">
-        <label>คำนำหน้า:</label>
-        <select id="prefix" required>
-          <option value="นาย">นาย</option>
-          <option value="นาง">นาง</option>
-          <option value="นางสาว">นางสาว</option>
-        </select>
-        <label>ชื่อ:</label>
-        <input type="text" id="name" required>
-        <label>นามสกุล:</label>
-        <input type="text" id="surname" required>
-        <label>เบอร์โทรศัพท์:</label>
-        <input type="tel" id="phone" pattern="\d{10}" required><br><br>
-        <input type="hidden" id="userId" name="userId">
-        <input type="submit" value="ส่งข้อมูล">
-      </form>
-      <div id="result"></div>
+    <div id="app">
+      <!-- CAMERA SCREEN -->
+      <section id="screen-camera" class="screen screen-camera is-active" aria-label="กล้องถ่ายรูป">
+        <header class="camera-top">
+          <p class="brand">ถ่ายขาย</p>
+          <button type="button" class="ghost-btn" id="btn-open-listings" aria-label="ดูรายการขาย">
+            ของฉัน
+            <span class="badge" id="listing-count">0</span>
+          </button>
+        </header>
+
+        <div class="viewfinder" id="viewfinder">
+          <video id="camera" autoplay playsinline muted></video>
+          <canvas id="capture-canvas" hidden></canvas>
+          <div class="viewfinder-frame" aria-hidden="true"></div>
+          <p class="viewfinder-hint" id="camera-hint">กำลังเปิดกล้อง…</p>
+          <div class="shutter-flash" id="shutter-flash" aria-hidden="true"></div>
+        </div>
+
+        <footer class="camera-dock">
+          <button type="button" class="dock-side" id="btn-pick-file" aria-label="เลือกรูปจากเครื่อง">
+            <span class="dock-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <circle cx="8.5" cy="10" r="1.5" />
+                <path d="M21 16l-5.5-5.5L9 17" />
+              </svg>
+            </span>
+            แกลเลอรี
+          </button>
+
+          <button type="button" class="shutter" id="btn-shutter" aria-label="ถ่ายรูป">
+            <span class="shutter-ring"></span>
+            <span class="shutter-core"></span>
+          </button>
+
+          <button type="button" class="dock-side" id="btn-flip" aria-label="สลับกล้อง">
+            <span class="dock-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M16 7h4v4" />
+                <path d="M20 7l-3.5 3.5A6.5 6.5 0 0 1 6 14" />
+                <path d="M8 17H4v-4" />
+                <path d="M4 17l3.5-3.5A6.5 6.5 0 0 1 18 10" />
+              </svg>
+            </span>
+            สลับ
+          </button>
+        </footer>
+
+        <input
+          type="file"
+          id="file-input"
+          accept="image/*"
+          capture="environment"
+          hidden
+        />
+      </section>
+
+      <!-- REVIEW / LIST SCREEN -->
+      <section id="screen-review" class="screen screen-review" aria-label="พรีวิวและลงขาย" hidden>
+        <header class="panel-header">
+          <button type="button" class="text-btn" id="btn-retake">ถ่ายใหม่</button>
+          <h1>ลงขาย</h1>
+          <span class="header-spacer"></span>
+        </header>
+
+        <div class="review-photo-wrap">
+          <img id="review-photo" alt="รูปที่ถ่าย" />
+        </div>
+
+        <form id="sell-form" class="sell-form" autocomplete="off">
+          <label>
+            ชื่อสินค้า
+            <input
+              type="text"
+              id="item-title"
+              name="title"
+              maxlength="80"
+              placeholder="เช่น กล้องฟิล์มมือสอง"
+              required
+            />
+          </label>
+          <label>
+            ราคา (บาท)
+            <input
+              type="number"
+              id="item-price"
+              name="price"
+              min="1"
+              step="1"
+              placeholder="เช่น 450"
+              required
+            />
+          </label>
+          <label>
+            รายละเอียดสั้นๆ
+            <textarea
+              id="item-note"
+              name="note"
+              rows="2"
+              maxlength="160"
+              placeholder="สภาพสินค้า / วิธีติดต่อ"
+            ></textarea>
+          </label>
+          <button type="submit" class="primary-btn" id="btn-list">ลงขายเลย</button>
+        </form>
+      </section>
+
+      <!-- LISTINGS SCREEN -->
+      <section id="screen-listings" class="screen screen-listings" aria-label="รายการขายของฉัน" hidden>
+        <header class="panel-header">
+          <button type="button" class="text-btn" id="btn-back-camera">กล้อง</button>
+          <h1>ของฉัน</h1>
+          <span class="header-spacer"></span>
+        </header>
+
+        <div id="listings-empty" class="empty-state" hidden>
+          <p class="empty-title">ยังไม่มีสินค้า</p>
+          <p class="empty-copy">ถ่ายรูปชิ้นแรก แล้วลงขายได้เลย</p>
+          <button type="button" class="primary-btn" id="btn-empty-shoot">เปิดกล้อง</button>
+        </div>
+
+        <ul id="listings" class="listings"></ul>
+      </section>
     </div>
+
+    <script src="app.js"></script>
   </body>
 </html>

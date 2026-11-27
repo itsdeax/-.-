@@ -85,3 +85,74 @@ window.THAISUAY_FILTERS = [
     p: { exposure: 0.05, contrast: 1.15, mono: 1 },
   },
 ];
+
+/*
+ * Camera looks (Dazz-style). Same parameters as the filters above, plus:
+ *   model  small label shown in the viewfinder
+ *   fx     { bloom, leak, aber } each 0..1: highlight glow, light leak, colour fringing
+ *   stamp  true = orange date stamp in the corner
+ *   frame  "polaroid" = white instant-photo border
+ */
+window.THAISUAY_CAMERAS = [
+  {
+    id: "cam-ccd",
+    name: "ดิจิแคม",
+    model: "CCD 2003",
+    chip: ["#cfe0ff", "#7fa0e0"],
+    p: { exposure: 0.15, contrast: 1.18, sat: 1.12, temp: -0.12, tint: 0.1, fade: 0.03 },
+    fx: { bloom: 0.35, aber: 0.25 },
+    stamp: true,
+  },
+  {
+    id: "cam-classic",
+    name: "คลาสสิก",
+    model: "D-CLASSIC",
+    chip: ["#ffe2b0", "#d98b4a"],
+    p: { exposure: 0.05, contrast: 1.1, sat: 1.05, temp: 0.22, tint: -0.05, fade: 0.05, vig: 0.2, grain: 0.04 },
+    fx: { bloom: 0.2 },
+    stamp: true,
+  },
+  {
+    id: "cam-fun",
+    name: "ใช้แล้วทิ้ง",
+    model: "FUN-Q",
+    chip: ["#ffd29a", "#e0603a"],
+    p: { exposure: 0.12, contrast: 1.1, sat: 1.1, temp: 0.3, tint: 0.05, fade: 0.06, vig: 0.35, grain: 0.09 },
+    fx: { leak: 0.55, bloom: 0.1 },
+    stamp: true,
+  },
+  {
+    id: "cam-instant",
+    name: "อินสแตนท์",
+    model: "INSTANT",
+    chip: ["#fff7ea", "#e8c9b0"],
+    p: { exposure: 0.18, contrast: 0.95, sat: 0.95, temp: 0.12, tint: 0.1, fade: 0.09, vig: 0.15, grain: 0.03 },
+    fx: { bloom: 0.15 },
+    frame: "polaroid",
+  },
+  {
+    id: "cam-film",
+    name: "ฟิล์ม 35",
+    model: "35MM",
+    chip: ["#c9b79a", "#6f5a46"],
+    p: { contrast: 1.15, sat: 0.9, temp: 0.1, tint: -0.08, fade: 0.08, vig: 0.3, grain: 0.1 },
+    fx: { bloom: 0.25, leak: 0.15 },
+  },
+  {
+    id: "cam-flash",
+    name: "แฟลชปาร์ตี้",
+    model: "FLASH",
+    chip: ["#ffffff", "#9fb4ff"],
+    p: { exposure: 0.3, contrast: 1.25, sat: 1.05, temp: -0.1, vig: 0.25 },
+    fx: { bloom: 0.4, aber: 0.3 },
+    stamp: true,
+  },
+  {
+    id: "cam-bw",
+    name: "ขาวดำฟิล์ม",
+    model: "B&W 400",
+    chip: ["#e6e6e6", "#262626"],
+    p: { contrast: 1.25, mono: 1, fade: 0.06, vig: 0.3, grain: 0.12 },
+    fx: { bloom: 0.15 },
+  },
+];

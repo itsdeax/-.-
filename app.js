@@ -39,6 +39,15 @@
       chip: [HEX.test(chip[0]) ? chip[0] : "#e9d9cf", HEX.test(chip[1]) ? chip[1] : "#b89d8c"],
       p: normalizeParams(f?.p),
       custom,
+      kind: f?.model ? "camera" : "filter",
+      model: String(f?.model ?? "").slice(0, 16),
+      fx: {
+        bloom: clamp(Number(f?.fx?.bloom) || 0, 0, 1),
+        leak: clamp(Number(f?.fx?.leak) || 0, 0, 1),
+        aber: clamp(Number(f?.fx?.aber) || 0, 0, 1),
+      },
+      stamp: Boolean(f?.stamp),
+      frame: f?.frame === "polaroid" ? "polaroid" : "",
     };
   }
 
@@ -60,7 +69,9 @@
     }
   }
 
-  const builtinFilters = (window.THAISUAY_FILTERS || []).map((f) => normalizeFilter(f, false));
+  const builtinFilters = [...(window.THAISUAY_FILTERS || []), ...(window.THAISUAY_CAMERAS || [])].map((f) =>
+    normalizeFilter(f, false)
+  );
   if (!builtinFilters.length) {
     builtinFilters.push(normalizeFilter({ id: "natural", name: "ธรรมชาติ", p: {} }, false));
   }
@@ -76,7 +87,7 @@
     fill: false,
     facing: "user",
     face: { slim: 0, jaw: 0, chin: 0, forehead: 0, eyes: 0, nose: 0, mouth: 0 },
-    makeup: { lip: "", blush: "", shadow: "", amount: 0.7 },
+    makeup: { lip: "", blush: "", shadow: "", amount: 0.55 },
     skin: { teeth: 0, dark: 0, highlight: 0, contour: 0 },
   };
 
@@ -118,6 +129,10 @@
   const video = $("source-video");
   const stage = $("stage");
   const hint = $("stage-hint");
+  const overlay = $("overlay");
+  const vfEl = $("viewfinder");
+  const vfLabel = $("vf-label");
+  const stripTabs = document.querySelectorAll(".strip-tab");
   const badge = $("compare-badge");
   const exitEditBtn = $("btn-exit-edit");
   const countdownEl = $("countdown");
@@ -146,6 +161,7 @@
   let mode = "camera";
   let imageSource = null;
   let comparing = false;
+  let stripKind = "filter";
   let counting = null;
   let dirty = true;
   let activeScreen = "camera";
@@ -328,7 +344,7 @@
   }
 
   function sanitizeMakeup(m) {
-    const out = { amount: 0.7 };
+    const out = { amount: 0.55 };
     const amount = Number(m?.amount);
     if (Number.isFinite(amount)) out.amount = clamp(amount, 0.1, 1);
     MAKEUP_ROWS.forEach(({ key, colors }) => {
@@ -402,6 +418,7 @@
       uniform vec4 u_rs2;
       uniform sampler2D u_fx;
       uniform float u_fxOn;
+      uniform vec3 u_look;
 
       float luma(vec3 c) {
         return dot(c, vec3(0.299, 0.587, 0.114));
@@ -438,7 +455,7 @@
         float len = length(d);
         if (len < e.z) {
           float k = 1.0 - len / e.z;
-          l = e.xy + d * (1.0 - u_eyes * 0.4 * k * k);
+          l = e.xy + d * (1.0 - u_eyes * 0.28 * k * k * (3.0 - 2.0 * k));
         }
         return l;
       }
@@ -452,18 +469,18 @@
 
         float t = (u_fy.x - l.y) / max(u_fy.x - u_fy.y, 0.2);
         float ax = abs(l.x);
-        float side = smoothstep(0.1, 0.5, ax) * (1.0 - smoothstep(0.5, 1.0, ax));
+        float side = smoothstep(0.1, 0.5, ax) * (1.0 - smoothstep(0.5, 0.85, ax));
         float wSlim = smoothstep(0.0, 0.35, t) * (1.0 - smoothstep(0.8, 1.05, t));
         float wJaw = smoothstep(0.45, 0.85, t) * (1.0 - smoothstep(0.95, 1.12, t));
-        l.x += l.x * side * (u_rs.x * 0.2 * wSlim + u_rs.y * 0.22 * wJaw);
+        l.x += l.x * side * (u_rs.x * 0.14 * wSlim + u_rs.y * 0.15 * wJaw);
 
         vec2 dc = l - vec2(u_fy.z, u_fy.y);
-        l.y += u_rs.z * 0.16 * exp(-dot(dc, dc) / 0.157);
+        l.y += u_rs.z * 0.12 * exp(-dot(dc, dc) / 0.157);
 
         vec2 dn = l - u_nose.xy;
         float wn = (1.0 - smoothstep(0.0, 1.0, abs(dn.x) / (u_nose.z * 2.0)))
                  * (1.0 - smoothstep(0.0, 1.0, abs(dn.y) / u_nose.w));
-        l.x += dn.x * u_rs.w * 0.3 * wn;
+        l.x += dn.x * u_rs.w * 0.22 * wn;
 
         if (u_eyes > 0.001) {
           l = magnify(l, u_eyeA);
@@ -474,11 +491,11 @@
         float lm = length(dm);
         if (lm < u_mouth.z) {
           float k = 1.0 - lm / u_mouth.z;
-          l = u_mouth.xy + dm * (1.0 - u_rs2.x * 0.3 * k * k);
+          l = u_mouth.xy + dm * (1.0 - u_rs2.x * 0.2 * k * k * (3.0 - 2.0 * k));
         }
 
         vec2 df = l - u_fh;
-        l.y -= u_rs2.y * 0.14 * exp(-dot(df, df) / 0.2);
+        l.y -= u_rs2.y * 0.1 * exp(-dot(df, df) / 0.2);
 
         vec2 p2 = (u_fax * l.x + ay * l.y) * u_face.z;
         return u_fc + p2 / asp;
@@ -489,7 +506,13 @@
         if (u_mirror > 0.5) uv.x = 1.0 - uv.x;
         uv = reshape(uv);
 
-        vec3 orig = texture2D(u_tex, uv).rgb;
+        vec3 orig;
+        if (u_look.z > 0.001) {
+          vec2 off = (uv - 0.5) * u_look.z * 0.012;
+          orig = vec3(texture2D(u_tex, uv + off).r, texture2D(u_tex, uv).g, texture2D(u_tex, uv - off).b);
+        } else {
+          orig = texture2D(u_tex, uv).rgb;
+        }
         vec3 c = orig;
         float mask = skinMask(orig);
 
@@ -512,7 +535,7 @@
           vec3 fx = texture2D(u_fx, uv).rgb;
           if (fx.r > 0.003) {
             float teeth = smoothstep(0.35, 0.62, luma(c));
-            vec3 white = mix(c, vec3(luma(c)), 0.6) * 1.18;
+            vec3 white = mix(c, vec3(luma(c)), 0.5) * 1.1;
             c = mix(c, white, fx.r * teeth);
           }
           if (fx.g > 0.003) {
@@ -543,6 +566,23 @@
         g += n * u_grain;
 
         c = mix(c, g, u_intensity);
+
+        if (u_look.x > 0.001) {
+          vec3 hi = vec3(0.0);
+          for (int i = 0; i < 8; i++) {
+            float a = float(i) * 0.7854;
+            vec2 off = vec2(cos(a), sin(a)) * u_radius * 2.2 * u_texel;
+            hi += max(texture2D(u_tex, uv + off).rgb - 0.62, 0.0);
+          }
+          c += hi * 0.125 * u_look.x * 2.2 * vec3(1.0, 0.93, 0.86);
+        }
+        if (u_look.y > 0.001) {
+          float lk = smoothstep(0.62, 0.0, distance(v_uv, vec2(0.0, 0.72)));
+          float lk2 = smoothstep(0.4, 0.0, distance(v_uv, vec2(1.0, 0.1))) * 0.6;
+          vec3 leak = vec3(1.0, 0.42, 0.18) * lk + vec3(1.0, 0.7, 0.3) * lk2;
+          c = 1.0 - (1.0 - c) * (1.0 - leak * u_look.y * 0.9);
+        }
+
         gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
       }`;
 
@@ -592,7 +632,7 @@
       "u_intensity", "u_exposure", "u_contrast", "u_sat", "u_temp", "u_tint",
       "u_fade", "u_vig", "u_grain", "u_mono", "u_seed",
       "u_face", "u_fc", "u_fax", "u_fy", "u_eyeA", "u_eyeB", "u_nose", "u_rs", "u_eyes",
-      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn",
+      "u_mask", "u_maskOn", "u_mouth", "u_fh", "u_rs2", "u_fx", "u_fxOn", "u_look",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
@@ -670,6 +710,7 @@
         gl.uniform4f(uniforms.u_face, fc ? 1 : 0, fc ? fc.asp : 1, fc ? fc.width : 1, 0);
         gl.uniform1f(uniforms.u_maskOn, p.maskOn ? 1 : 0);
         gl.uniform1f(uniforms.u_fxOn, p.fxOn ? 1 : 0);
+        gl.uniform3f(uniforms.u_look, p.look.bloom, p.look.leak, p.look.aber);
         if (fc) {
           gl.uniform2f(uniforms.u_fc, fc.center[0], fc.center[1]);
           gl.uniform2f(uniforms.u_fax, fc.axis[0], fc.axis[1]);
@@ -738,6 +779,7 @@
       maskOn: !original && face.hasMask && Boolean(face.geo),
       fxOn: !original && face.hasFx && Boolean(face.geo),
       reshape: settings.face,
+      look: original || lab.open ? { bloom: 0, leak: 0, aber: 0 } : findFilter(settings.filter).fx,
       seed: (performance.now() % 1000) / 1000,
     };
   }
@@ -797,10 +839,12 @@
 
   function renderFilterStrip() {
     filterStrip.innerHTML = "";
-    allFilters().forEach((f) => {
+    allFilters()
+      .filter((f) => f.kind === stripKind)
+      .forEach((f) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "filter-chip";
+      btn.className = "filter-chip" + (f.kind === "camera" ? " is-camera" : "");
       btn.setAttribute("role", "option");
       btn.setAttribute("aria-selected", String(f.id === settings.filter));
       btn.dataset.id = f.id;
@@ -811,6 +855,10 @@
       const name = document.createElement("span");
       name.textContent = f.name;
 
+      if (f.kind === "camera") {
+        swatch.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>';
+      }
       btn.append(swatch, name);
       btn.addEventListener("click", () => {
         selectFilter(f.id);
@@ -819,9 +867,23 @@
           saveSettings();
           syncSliders();
         }
-        toast(`ฟิลเตอร์: ${f.name}`);
+        toast(`${f.kind === "camera" ? "กล้อง" : "ฟิลเตอร์"}: ${f.name}`);
       });
       filterStrip.appendChild(btn);
+    });
+  }
+
+  function refreshStrip() {
+    stripKind = findFilter(settings.filter).kind;
+    syncStripTabs();
+    renderFilterStrip();
+  }
+
+  function syncStripTabs() {
+    stripTabs.forEach((t) => {
+      const on = t.dataset.kind === stripKind;
+      t.classList.toggle("is-on", on);
+      t.setAttribute("aria-selected", String(on));
     });
   }
 
@@ -829,6 +891,13 @@
     settings.filter = id;
     saveSettings();
     dirty = true;
+    const kind = findFilter(id).kind;
+    if (kind !== stripKind) {
+      stripKind = kind;
+      renderFilterStrip();
+      syncStripTabs();
+    }
+    syncOverlay();
     if (lab.open) loadLab(id);
     filterStrip.querySelectorAll(".filter-chip").forEach((el) => {
       const on = el.dataset.id === id;
@@ -921,6 +990,108 @@
     }
   }
 
+  /* ---------- overlay: date stamp and frame ---------- */
+
+  const SEGMENTS = {
+    0: "abcdef",
+    1: "bc",
+    2: "abdeg",
+    3: "abcdg",
+    4: "bcfg",
+    5: "acdfg",
+    6: "acdefg",
+    7: "abc",
+    8: "abcdefg",
+    9: "abcdfg",
+  };
+
+  function drawSevenSegment(ctx, ch, x, y, w, h) {
+    const t = w * 0.2;
+    const on = SEGMENTS[ch] || "";
+    const half = h / 2;
+    const rects = {
+      a: [x + t * 0.5, y, w - t, t],
+      d: [x + t * 0.5, y + h - t, w - t, t],
+      g: [x + t * 0.5, y + half - t / 2, w - t, t],
+      f: [x, y + t * 0.5, t, half - t * 0.5],
+      b: [x + w - t, y + t * 0.5, t, half - t * 0.5],
+      e: [x, y + half, t, half - t * 0.5],
+      c: [x + w - t, y + half, t, half - t * 0.5],
+    };
+    for (const seg of on) ctx.fillRect(...rects[seg]);
+  }
+
+  function drawDateStamp(ctx, w, h, bottomInset) {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const text = `'${pad(d.getFullYear() % 100)} ${pad(d.getMonth() + 1)} ${pad(d.getDate())}`;
+    const dw = w * 0.026;
+    const dh = dw * 1.85;
+    const gap = dw * 0.45;
+    const total = text.length * (dw + gap) - gap;
+    let x = w - w * 0.05 - total;
+    const y = h - bottomInset - h * 0.045 - dh;
+    ctx.save();
+    ctx.fillStyle = "#ff8a1f";
+    ctx.shadowColor = "rgba(255, 110, 0, 0.85)";
+    ctx.shadowBlur = dw * 0.7;
+    ctx.globalAlpha = 0.93;
+    for (const ch of text) {
+      if (ch === "'") {
+        ctx.beginPath();
+        ctx.moveTo(x + dw * 0.55, y);
+        ctx.lineTo(x + dw * 0.85, y);
+        ctx.lineTo(x + dw * 0.45, y + dh * 0.28);
+        ctx.lineTo(x + dw * 0.2, y + dh * 0.28);
+        ctx.closePath();
+        ctx.fill();
+      } else if (ch !== " ") {
+        drawSevenSegment(ctx, ch, x, y, dw, dh);
+      }
+      x += dw + gap;
+    }
+    ctx.restore();
+  }
+
+  function drawOverlay(ctx, w, h, look, clear = true) {
+    if (clear) ctx.clearRect(0, 0, w, h);
+    if (!look) return;
+    let bottomInset = 0;
+    if (look.frame === "polaroid") {
+      const m = w * 0.055;
+      bottomInset = w * 0.2;
+      ctx.save();
+      ctx.fillStyle = "#f6f1e8";
+      ctx.beginPath();
+      ctx.rect(0, 0, w, h);
+      ctx.rect(m, m, w - m * 2, h - m - bottomInset);
+      ctx.fill("evenodd");
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
+      ctx.lineWidth = Math.max(1, w * 0.002);
+      ctx.strokeRect(m, m, w - m * 2, h - m - bottomInset);
+      ctx.restore();
+    }
+    if (look.stamp) drawDateStamp(ctx, w, h, bottomInset);
+  }
+
+  function activeLook() {
+    return lab.open ? null : findFilter(settings.filter);
+  }
+
+  function syncOverlay() {
+    const look = activeLook();
+    const ctx = overlay.getContext("2d");
+    if (overlay.width !== 720) {
+      overlay.width = 720;
+      overlay.height = 960;
+    }
+    drawOverlay(ctx, overlay.width, overlay.height, look);
+    overlay.style.visibility = comparing ? "hidden" : "visible";
+    const camera = look?.kind === "camera";
+    vfEl.hidden = !camera;
+    if (camera) vfLabel.textContent = look.model;
+  }
+
   /* ---------- capture ---------- */
 
   function renderToBlob() {
@@ -932,10 +1103,18 @@
     renderer.upload(mode === "camera" ? video : imageSource);
     renderer.draw(drawParams(size, false));
 
+    const out = document.createElement("canvas");
+    out.width = dims.w;
+    out.height = dims.h;
+    const octx = out.getContext("2d", { willReadFrequently: true });
+    octx.drawImage(canvas, 0, 0, dims.w, dims.h);
+    drawOverlay(octx, dims.w, dims.h, activeLook(), false);
     return new Promise((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", 0.92);
-      renderer.setSize(previewDims.w, previewDims.h);
-      dirty = true;
+      out.toBlob((blob) => {
+        renderer.setSize(previewDims.w, previewDims.h);
+        dirty = true;
+        resolve(blob);
+      }, "image/jpeg", 0.92);
     });
   }
 
@@ -1172,9 +1351,9 @@
       filter: "clean",
       smooth: 0.4,
       glow: 0.3,
-      face: { slim: 0.15, jaw: 0.1, eyes: 0.2, nose: 0.1 },
+      face: { slim: 0.12, jaw: 0.08, eyes: 0.16, nose: 0.08 },
       skin: { teeth: 0.2, dark: 0.3, highlight: 0.2 },
-      makeup: { lip: "#d7848a", blush: "#ff9a85", amount: 0.5 },
+      makeup: { lip: "#d7848a", blush: "#ff9a85", amount: 0.4 },
     },
     {
       id: "sweet",
@@ -1183,9 +1362,9 @@
       filter: "milk",
       smooth: 0.55,
       glow: 0.4,
-      face: { slim: 0.3, jaw: 0.2, eyes: 0.4, nose: 0.2 },
+      face: { slim: 0.24, jaw: 0.16, eyes: 0.32, nose: 0.16 },
       skin: { teeth: 0.35, dark: 0.5, highlight: 0.35 },
-      makeup: { lip: "#ee6c5a", blush: "#ff9a85", shadow: "#d9948f", amount: 0.6 },
+      makeup: { lip: "#ee6c5a", blush: "#ff9a85", shadow: "#d9948f", amount: 0.5 },
     },
     {
       id: "korean",
@@ -1194,9 +1373,9 @@
       filter: "glass",
       smooth: 0.6,
       glow: 0.45,
-      face: { slim: 0.4, jaw: 0.35, chin: -0.1, eyes: 0.35, nose: 0.3, mouth: -0.1 },
+      face: { slim: 0.32, jaw: 0.28, chin: -0.08, eyes: 0.28, nose: 0.24, mouth: -0.08 },
       skin: { teeth: 0.3, dark: 0.5, highlight: 0.4, contour: 0.15 },
-      makeup: { lip: "#e0567c", blush: "#ff7fa6", shadow: "#a77a9c", amount: 0.6 },
+      makeup: { lip: "#e0567c", blush: "#ff7fa6", shadow: "#a77a9c", amount: 0.5 },
     },
     {
       id: "sharp",
@@ -1205,9 +1384,9 @@
       filter: "chrome",
       smooth: 0.35,
       glow: 0.2,
-      face: { slim: 0.25, jaw: 0.3, chin: 0.1, eyes: 0.2, nose: 0.35 },
+      face: { slim: 0.2, jaw: 0.24, chin: 0.08, eyes: 0.16, nose: 0.28 },
       skin: { teeth: 0.3, dark: 0.3, highlight: 0.5, contour: 0.5 },
-      makeup: { lip: "#c8283a", blush: "#e86a86", shadow: "#8a5a44", amount: 0.65 },
+      makeup: { lip: "#c8283a", blush: "#e86a86", shadow: "#8a5a44", amount: 0.55 },
     },
     {
       id: "sunny",
@@ -1216,9 +1395,9 @@
       filter: "sunny",
       smooth: 0.45,
       glow: 0.5,
-      face: { slim: 0.2, eyes: 0.25, nose: 0.15 },
+      face: { slim: 0.16, eyes: 0.2, nose: 0.12 },
       skin: { teeth: 0.3, dark: 0.3, highlight: 0.45, contour: 0.25 },
-      makeup: { lip: "#ee6c5a", blush: "#ffa86a", shadow: "#f0a07c", amount: 0.55 },
+      makeup: { lip: "#ee6c5a", blush: "#ffa86a", shadow: "#f0a07c", amount: 0.45 },
     },
     {
       id: "rosy",
@@ -1227,9 +1406,9 @@
       filter: "blush",
       smooth: 0.55,
       glow: 0.4,
-      face: { slim: 0.3, jaw: 0.2, eyes: 0.35, nose: 0.2 },
+      face: { slim: 0.24, jaw: 0.16, eyes: 0.28, nose: 0.16 },
       skin: { teeth: 0.3, dark: 0.4, highlight: 0.3 },
-      makeup: { lip: "#e0567c", blush: "#e86a86", shadow: "#d9948f", amount: 0.65 },
+      makeup: { lip: "#e0567c", blush: "#e86a86", shadow: "#d9948f", amount: 0.55 },
     },
   ];
 
@@ -1240,7 +1419,7 @@
       settings.skin = sanitizeSkin(null);
     } else {
       settings.face = sanitizeFace(look.face);
-      settings.makeup = sanitizeMakeup({ amount: 0.7, ...look.makeup });
+      settings.makeup = sanitizeMakeup({ amount: 0.55, ...look.makeup });
       settings.skin = sanitizeSkin(look.skin);
       settings.smooth = look.smooth;
       settings.glow = look.glow;
@@ -1405,12 +1584,14 @@
     if (e.target === exitEditBtn) return;
     comparing = true;
     badge.hidden = false;
+    overlay.style.visibility = "hidden";
     dirty = true;
   };
   const endCompare = () => {
     if (!comparing) return;
     comparing = false;
     badge.hidden = true;
+    overlay.style.visibility = "visible";
     dirty = true;
   };
   stage.addEventListener("pointerdown", startCompare);
@@ -1508,12 +1689,14 @@
     controlsEl.classList.remove("face-open");
     lab.open = true;
     labEls.panel.hidden = false;
+    syncOverlay();
     loadLab(settings.filter);
   }
 
   function closeLab() {
     lab.open = false;
     labEls.panel.hidden = true;
+    syncOverlay();
     dirty = true;
   }
 
@@ -1542,7 +1725,7 @@
     lab.name = next.name;
     settings.filter = id;
     saveSettings();
-    renderFilterStrip();
+    refreshStrip();
     selectFilter(id);
     toast("บันทึกฟิลเตอร์ในเครื่องแล้ว");
   }
@@ -1553,7 +1736,7 @@
     saveCustomFilters();
     settings.filter = builtinFilters[0].id;
     saveSettings();
-    renderFilterStrip();
+    refreshStrip();
     selectFilter(settings.filter);
     toast("ลบฟิลเตอร์แล้ว");
   }
@@ -1781,7 +1964,17 @@
     settings.filter = DEFAULT_SETTINGS.filter;
     saveSettings();
   }
-  renderFilterStrip();
+  refreshStrip();
+  syncOverlay();
+  stripTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      stripKind = tab.dataset.kind;
+      syncStripTabs();
+      renderFilterStrip();
+      const selected = filterStrip.querySelector('[aria-selected="true"]');
+      if (selected) centerChip(selected);
+    });
+  });
   if (importedName) toast(`นำเข้าฟิลเตอร์ "${importedName}" แล้ว`);
   else if (importedName === null) toast("ลิงก์ฟิลเตอร์ไม่ถูกต้อง");
 

@@ -63,6 +63,14 @@
         <div class="stage-wrap">
           <div class="stage" id="stage">
             <canvas id="view" aria-label="ภาพตัวอย่างพร้อมฟิลเตอร์"></canvas>
+            <canvas id="overlay" class="overlay" aria-hidden="true"></canvas>
+            <div class="viewfinder" id="viewfinder" aria-hidden="true" hidden>
+              <span class="vf-corner vf-tl"></span>
+              <span class="vf-corner vf-tr"></span>
+              <span class="vf-corner vf-bl"></span>
+              <span class="vf-corner vf-br"></span>
+              <span class="vf-label" id="vf-label"></span>
+            </div>
             <video id="source-video" class="offscreen" autoplay playsinline muted></video>
             <p class="stage-hint" id="stage-hint">กำลังเปิดกล้อง…</p>
             <p class="stage-badge" id="compare-badge" hidden>ภาพต้นฉบับ</p>
@@ -105,6 +113,11 @@
             <div class="face-body face-sliders" id="face-shape" hidden></div>
             <div class="face-body face-sliders" id="face-skin" hidden></div>
             <div class="face-body" id="face-makeup" hidden></div>
+          </div>
+
+          <div class="strip-tabs" role="tablist">
+            <button type="button" class="strip-tab is-on" role="tab" data-kind="filter" aria-selected="true">ฟิลเตอร์</button>
+            <button type="button" class="strip-tab" role="tab" data-kind="camera" aria-selected="false">กล้องฟิล์ม</button>
           </div>
 
           <div class="filter-strip" id="filter-strip" role="listbox" aria-label="ฟิลเตอร์"></div>

@@ -131,6 +131,11 @@
             <input type="color" id="lab-c1" value="#e9d9cf" aria-label="สีชิปต้น" />
             <input type="color" id="lab-c2" value="#b89d8c" aria-label="สีชิปปลาย" />
           </div>
+          <button type="button" class="lab-ref" id="btn-lab-ref">
+            สร้างจากรูปอ้างอิง
+            <span class="lab-ref-note">เลือกรูปที่ชอบโทนสี แอปจะประมาณค่าฟิลเตอร์ให้ (วิเคราะห์ในเครื่อง ไม่อัปโหลดรูป)</span>
+          </button>
+          <input type="file" id="lab-ref-input" accept="image/*" hidden />
           <div class="lab-sliders" id="lab-sliders"></div>
           <div class="lab-actions">
             <button type="button" class="lab-btn lab-btn-primary" id="btn-lab-save">บันทึกในเครื่อง</button>

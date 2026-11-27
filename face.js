@@ -263,8 +263,8 @@
         const cyp = Y(cheek) + (Y(edge) - Y(cheek)) * 0.28 + up[1] * faceW * 0.02;
         const r = faceW * 0.2;
         const g = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, r);
-        g.addColorStop(0, rgba(makeup.blush, 0.85 * amount));
-        g.addColorStop(0.5, rgba(makeup.blush, 0.42 * amount));
+        g.addColorStop(0, rgba(makeup.blush, 0.6 * amount));
+        g.addColorStop(0.5, rgba(makeup.blush, 0.3 * amount));
         g.addColorStop(1, rgba(makeup.blush, 0));
         ctx.fillStyle = g;
         ctx.fillRect(cxp - r, cyp - r, r * 2, r * 2);
@@ -287,9 +287,9 @@
           ctx.lineTo(X(lid[k]) + up[0] * lift * (0.35 + 0.65 * t), Y(lid[k]) + up[1] * lift * (0.35 + 0.65 * t));
         }
         ctx.closePath();
-        ctx.shadowColor = rgba(makeup.shadow, 0.9 * amount);
-        ctx.shadowBlur = Math.max(2, eyeW * 0.35);
-        ctx.fillStyle = rgba(makeup.shadow, 0.7 * amount);
+        ctx.shadowColor = rgba(makeup.shadow, 0.7 * amount);
+        ctx.shadowBlur = Math.max(3, eyeW * 0.5);
+        ctx.fillStyle = rgba(makeup.shadow, 0.45 * amount);
         ctx.fill();
         ctx.shadowBlur = 0;
       });
@@ -305,9 +305,9 @@
         ctx.closePath();
       };
       path(LIPS_OUTER);
-      ctx.shadowColor = rgba(makeup.lip, 0.8 * amount);
-      ctx.shadowBlur = Math.max(1.5, faceW * 0.012);
-      ctx.fillStyle = rgba(makeup.lip, 0.92 * amount);
+      ctx.shadowColor = rgba(makeup.lip, 0.6 * amount);
+      ctx.shadowBlur = Math.max(2, faceW * 0.018);
+      ctx.fillStyle = rgba(makeup.lip, 0.75 * amount);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.globalCompositeOperation = "destination-out";

@@ -121,6 +121,7 @@
   let resultUrl = null;
   let toastTimer = null;
   let cameraToken = 0;
+  let framesDrawn = 0;
   const lab = { open: false, editingId: null, name: "", chip: ["#e9d9cf", "#b89d8c"], p: normalizeParams({}) };
 
   const renderer = createRenderer(canvas);
@@ -303,6 +304,10 @@
     gl.uniform1i(uniforms.u_tex, 0);
 
     return {
+      info() {
+        const ext = gl.getExtension("WEBGL_debug_renderer_info");
+        return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "unknown GPU";
+      },
       setSize(w, h) {
         if (target.width !== w || target.height !== h) {
           target.width = w;
@@ -407,6 +412,7 @@
     renderer.upload(isVideo ? video : imageSource);
     renderer.draw(drawParams(size, comparing));
     dirty = false;
+    framesDrawn += 1;
   }
 
   /* ---------- UI helpers ---------- */
@@ -450,7 +456,10 @@
       name.textContent = f.name;
 
       btn.append(swatch, name);
-      btn.addEventListener("click", () => selectFilter(f.id));
+      btn.addEventListener("click", () => {
+        selectFilter(f.id);
+        toast(`ฟิลเตอร์: ${f.name}`);
+      });
       filterStrip.appendChild(btn);
     });
   }
@@ -921,6 +930,50 @@
     ].join("\n");
   }
 
+  const toBase64Url = (text) =>
+    btoa(unescape(encodeURIComponent(text))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const fromBase64Url = (text) =>
+    decodeURIComponent(escape(atob(text.replace(/-/g, "+").replace(/_/g, "/"))));
+
+  function shareLink() {
+    const snap = labSnapshot("shared");
+    const payload = toBase64Url(JSON.stringify({ name: snap.name, chip: snap.chip, p: snap.p }));
+    return `${location.origin}${location.pathname}#filter=${payload}`;
+  }
+
+  async function copyShareLink() {
+    const link = shareLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("คัดลอกลิงก์แล้ว เปิดบนมือถือเพื่อนำเข้า");
+    } catch {
+      window.prompt("คัดลอกลิงก์นี้ไปเปิดบนมือถือ", link);
+    }
+  }
+
+  function importFilterFromHash() {
+    const match = /^#filter=([A-Za-z0-9_-]{1,3000})$/.exec(location.hash);
+    if (!match) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    try {
+      const data = JSON.parse(fromBase64Url(match[1]));
+      const key = JSON.stringify([data.name, data.chip, data.p]);
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+      const id = `shared-${hash.toString(36)}`;
+      const filter = normalizeFilter({ ...data, id }, true);
+      if (!customFilters.some((f) => f.id === id)) {
+        customFilters.push(filter);
+        saveCustomFilters();
+      }
+      settings.filter = id;
+      saveSettings();
+      return filter.name;
+    } catch {
+      return null;
+    }
+  }
+
   async function copyLabCode() {
     const text = labCode();
     try {
@@ -1066,6 +1119,7 @@
     labEls.close.addEventListener("click", closeLab);
     labEls.save.addEventListener("click", saveLabFilter);
     labEls.copy.addEventListener("click", copyLabCode);
+    $("btn-lab-link").addEventListener("click", copyShareLink);
     labEls.del.addEventListener("click", deleteLabFilter);
     labEls.c1.addEventListener("input", () => {
       lab.chip[0] = labEls.c1.value;
@@ -1077,7 +1131,24 @@
 
   /* ---------- boot ---------- */
 
+  const importedName = importFilterFromHash();
   renderFilterStrip();
+  if (importedName) toast(`นำเข้าฟิลเตอร์ "${importedName}" แล้ว`);
+  else if (importedName === null) toast("ลิงก์ฟิลเตอร์ไม่ถูกต้อง");
+
+  if (DEV_MODE && renderer) {
+    const debugEl = $("stage-debug");
+    debugEl.hidden = false;
+    const gpu = renderer.info();
+    let lastFrames = 0;
+    setInterval(() => {
+      const fps = (framesDrawn - lastFrames) * 2;
+      lastFrames = framesDrawn;
+      const f = findFilter(settings.filter);
+      debugEl.textContent =
+        `${gpu} | ${canvas.width}x${canvas.height} | ${f.id} | ฟิลเตอร์ ${Math.round(settings.intensity * 100)}% | ${fps}fps`;
+    }, 500);
+  }
   syncSliders();
   syncToolbar();
 

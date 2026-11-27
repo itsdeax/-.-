@@ -931,7 +931,135 @@
     }
   }
 
+  const toHex = (r, g, b) =>
+    "#" + [r, g, b].map((v) => clamp(Math.round(v * 255), 0, 255).toString(16).padStart(2, "0")).join("");
+
+  /*
+   * Estimates filter parameters from a reference photo by comparing its colour
+   * statistics with those of a typical neutral photo. It is an approximation and
+   * is biased by scene content (a photo of a red wall reads as "warm").
+   * Each formula inverts the matching step of the shader's grade.
+   */
+  function analyzeReference(src) {
+    const scale = Math.min(1, 160 / Math.max(src.width, src.height));
+    const w = Math.max(8, Math.round(src.width * scale));
+    const h = Math.max(8, Math.round(src.height * scale));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(src, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    const n = w * h;
+    const luma = new Float32Array(n);
+    let sumL = 0;
+    let sumL2 = 0;
+    for (let i = 0; i < n; i++) {
+      const l = (0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]) / 255;
+      luma[i] = l;
+      sumL += l;
+      sumL2 += l * l;
+    }
+    const meanL = sumL / n;
+    const std = Math.sqrt(Math.max(0, sumL2 / n - meanL * meanL));
+    const sorted = Float32Array.from(luma).sort();
+    const median = sorted[Math.floor(n / 2)];
+    const black = sorted[Math.floor(n * 0.01)];
+
+    let mid = { r: 0, g: 0, b: 0, chroma: 0, count: 0 };
+    let light = { r: 0, g: 0, b: 0, count: 0 };
+    let dark = { r: 0, g: 0, b: 0, count: 0 };
+    for (let i = 0; i < n; i++) {
+      const r = data[i * 4] / 255;
+      const g = data[i * 4 + 1] / 255;
+      const b = data[i * 4 + 2] / 255;
+      const l = luma[i];
+      if (l > 0.08 && l < 0.92) {
+        mid.r += r;
+        mid.g += g;
+        mid.b += b;
+        mid.chroma += Math.max(r, g, b) - Math.min(r, g, b);
+        mid.count++;
+      }
+      const bucket = l >= median ? light : dark;
+      bucket.r += r;
+      bucket.g += g;
+      bucket.b += b;
+      bucket.count++;
+    }
+    if (mid.count < n * 0.1) {
+      mid = { r: meanL, g: meanL, b: meanL, chroma: 0, count: 1 };
+    }
+    const mr = mid.r / mid.count;
+    const mg = mid.g / mid.count;
+    const mb = mid.b / mid.count;
+    const chroma = mid.chroma / mid.count;
+
+    const boxMean = (x0, y0, x1, y1) => {
+      let s = 0;
+      let k = 0;
+      for (let y = Math.floor(y0 * h); y < Math.ceil(y1 * h); y++) {
+        for (let x = Math.floor(x0 * w); x < Math.ceil(x1 * w); x++) {
+          s += luma[y * w + x];
+          k++;
+        }
+      }
+      return k ? s / k : meanL;
+    };
+    const centre = boxMean(0.3, 0.3, 0.7, 0.7);
+    const corners =
+      (boxMean(0, 0, 0.2, 0.2) + boxMean(0.8, 0, 1, 0.2) + boxMean(0, 0.8, 0.2, 1) + boxMean(0.8, 0.8, 1, 1)) / 4;
+
+    const isMono = chroma < 0.03;
+    const fade = black > 0.03 ? clamp(black, 0, 0.3) : 0;
+    const lift = (meanL - fade) / (1 - fade);
+    const vigRaw = centre > 0.05 ? (1 - corners / centre) / 0.9 : 0;
+
+    const p = normalizeParams({
+      exposure: Math.log2(Math.max(lift, 0.02) / 0.45) * 0.7,
+      contrast: std / (1 - fade) / 0.22,
+      sat: isMono ? 1 : chroma / 0.2,
+      temp: (mr - mb - 0.04) / 0.16,
+      tint: -(mg - (mr + mb) / 2) / 0.065,
+      fade,
+      vig: vigRaw > 0.15 ? vigRaw : 0,
+      grain: 0,
+      mono: isMono ? 1 : 0,
+    });
+    p.exposure = clamp(p.exposure, -0.6, 0.6);
+
+    const lc = light.count || 1;
+    const dc = dark.count || 1;
+    return {
+      p,
+      chip: [toHex(light.r / lc, light.g / lc, light.b / lc), toHex(dark.r / dc, dark.g / dc, dark.b / dc)],
+    };
+  }
+
+  async function onReferencePicked(input) {
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      const img = await loadImage(file);
+      const result = analyzeReference(img);
+      lab.p = result.p;
+      lab.chip = result.chip;
+      lab.editingId = null;
+      lab.name = "จากรูปอ้างอิง";
+      syncLabUi();
+      dirty = true;
+      toast("สร้างจากรูปอ้างอิงแล้ว ปรับต่อได้เลย");
+    } catch {
+      toast("เปิดรูปนี้ไม่ได้");
+    }
+  }
+
   if (DEV_MODE) {
+    const refInput = $("lab-ref-input");
+    $("btn-lab-ref").addEventListener("click", () => refInput.click());
+    refInput.addEventListener("change", () => onReferencePicked(refInput));
     buildLabSliders();
     labEls.open.hidden = false;
     labEls.open.addEventListener("click", () => (lab.open ? closeLab() : openLab()));
